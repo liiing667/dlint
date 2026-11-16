@@ -14,8 +14,9 @@ from .. import namespace
 
 Flake8Result = collections.namedtuple(
     'Flake8Result',
-    ['lineno', 'col_offset', 'message']
+    ['lineno', 'col_offset', 'message', 'reason']
 )
+Flake8Result.__new__.__defaults__ = (None,)
 
 
 class BaseLinter(ast.NodeVisitor):

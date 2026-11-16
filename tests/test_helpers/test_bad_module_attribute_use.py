@@ -637,6 +637,153 @@ class TestBadModuleAttributeUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_module_attribute_function_scope_usage(self):
+        python_node = self.get_ast_node(
+            """
+            def func():
+                import foo
+
+                foo.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=4,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_module_attribute_function_scope_hidden_usage(self):
+        python_node = self.get_ast_node(
+            """
+            def func():
+                import foo
+
+            foo.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = []
+
+        assert result == expected
+
+    def test_module_attribute_conditional_scope_usage(self):
+        python_node = self.get_ast_node(
+            """
+            if True:
+                import foo
+
+            foo.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_module_attribute_try_scope_usage(self):
+        python_node = self.get_ast_node(
+            """
+            try:
+                import foo
+            except ImportError:
+                pass
+
+            foo.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_module_attribute_relative_import_retains_finding(self):
+        python_node = self.get_ast_node(
+            """
+            from . import foo
+
+            foo.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        assert len(result) == 1
+        assert result[0].lineno == 4
+        assert result[0].reason is not None
+        assert "relative import" in result[0].message
+
+    def test_module_attribute_conflicting_binding_retains_finding(self):
+        python_node = self.get_ast_node(
+            """
+            import safe as foo
+            import foo
+
+            foo.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        assert len(result) == 1
+        assert result[0].reason is not None
+        assert "conflicting import bindings" in result[0].message
+
+    def test_module_attribute_unknown_binding_no_finding(self):
+        python_node = self.get_ast_node(
+            """
+            foo = None
+
+            foo.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = []
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

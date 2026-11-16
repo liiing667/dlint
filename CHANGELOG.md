@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- `Namespace` now collects imports from every scope (function, class, and
+  conditional `if`/`try` blocks) instead of module-level statements only
+- `visit_Name` and `visit_Attribute` share a single scope-aware canonical
+  module resolver that handles aliases, alias chains, wildcard
+  (`from ... import *`), and relative imports
+- Relative or conflicting import bindings retain the finding with an
+  explanatory reason; unimported names no longer produce findings
 
 ## [0.10.2] - 2020-02-19
 ### Changed

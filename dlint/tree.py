@@ -157,7 +157,8 @@ def kwarg_module_path(call, kwarg_name, illegal_module_path, namespace):
     return any(
         keyword.arg == kwarg_name
         and isinstance(keyword.value, (ast.Attribute, ast.Name))
-        and namespace.illegal_module_imported(
+        and namespace.illegal_module_imported_in_scope(
+            keyword.value,
             module_path_str(keyword.value),
             illegal_module_path
         )
@@ -170,7 +171,8 @@ def kwarg_module_path_call(call, kwarg_name, illegal_module_path, namespace):
         keyword.arg == kwarg_name
         and isinstance(keyword.value, ast.Call)
         and isinstance(keyword.value.func, (ast.Attribute, ast.Name))
-        and namespace.illegal_module_imported(
+        and namespace.illegal_module_imported_in_scope(
+            keyword.value.func,
             module_path_str(keyword.value.func),
             illegal_module_path
         )

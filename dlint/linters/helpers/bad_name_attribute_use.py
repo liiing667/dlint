@@ -80,7 +80,8 @@ class BadNameAttributeUseLinter(base.BaseLinter, util.ABC):
                 if target.variable == variable
                 and attribute in self.illegal_name_attributes
                 and any(
-                    self.namespace.illegal_module_imported(
+                    self.namespace.illegal_module_imported_in_scope(
+                        inner_node,
                         target.module_path,
                         illegal_name
                     )

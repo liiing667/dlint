@@ -26,7 +26,7 @@ class BadBuiltinUseLinter(base.BaseLinter, util.ABC):
 
     def visit_Name(self, node):
         if (node.id == self.illegal_builtin
-                and not self.namespace.name_imported(node.id)):
+                and not self.namespace.name_imported_in_scope(node, node.id)):
             self.results.append(
                 base.Flake8Result(
                     lineno=node.lineno,

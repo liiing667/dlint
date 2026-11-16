@@ -34,7 +34,8 @@ class BadKwargUseLinter(base.BaseLinter, util.ABC):
 
         def minimized_illegal_module_imported(module_path, node):
             return any(
-                self.namespace.illegal_module_imported(
+                self.namespace.illegal_module_imported_in_scope(
+                    node,
                     module_path,
                     kwarg["module_path"]
                 )
@@ -53,7 +54,8 @@ class BadKwargUseLinter(base.BaseLinter, util.ABC):
 
         def minimized_kwarg_predicate(module_path, node):
             return any(
-                self.namespace.illegal_module_imported(
+                self.namespace.illegal_module_imported_in_scope(
+                    node,
                     module_path,
                     kwarg["module_path"]
                 )
