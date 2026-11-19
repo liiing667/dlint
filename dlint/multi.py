@@ -9,6 +9,7 @@ from __future__ import (
 
 import ast
 
+from . import dataflow
 from . import namespace
 
 
@@ -16,6 +17,7 @@ class MultiNodeVisitor(ast.NodeVisitor):
     def __init__(self, linters, *args, **kwargs):
         self.linters = linters
         self.namespace = None
+        self.resolver = None
 
         super(MultiNodeVisitor, self).__init__(*args, **kwargs)
 
@@ -25,8 +27,10 @@ class MultiNodeVisitor(ast.NodeVisitor):
             # as an ast.Module. If not, we should fail fast with a raised
             # exception and investigate.
             self.namespace = namespace.Namespace.from_module_node(node)
+            self.resolver = dataflow.Resolver(node, self.namespace)
             for linter in self.linters:
                 linter.namespace = self.namespace
+                linter.resolver = self.resolver
 
         # Python 2 cannot rebind free variables, i.e. 'nonlocal'
         nonlocal_hack = {'any_recurse': False}

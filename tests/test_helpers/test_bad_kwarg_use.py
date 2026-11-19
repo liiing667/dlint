@@ -535,6 +535,171 @@ class TestBadKwargUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_kwargs_aliased_call_target(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            bar = foo.bar
+            bar(kwarg="test")
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+        assert linter.get_evidence()
+
+    def test_kwargs_aliased_keyword_value(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            value = True
+            foo.bar(kwarg=value)
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_kwargs_unpacked_dictionary(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            options = {"kwarg": "test"}
+            foo.bar(**options)
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_kwargs_dynamic_value_is_silent(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            def run(value):
+                foo.bar(kwarg=value)
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        assert linter.get_results() == []
+
+    def test_kwargs_indirect_dynamic_call_is_silent(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            factory = make_factory()
+            factory(kwarg="test")
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        assert linter.get_results() == []
+
+    def test_kwargs_explicit_false_is_safe_for_present_rule(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            foo.bar(kwarg=False)
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        assert linter.get_results() == []
+
 
 if __name__ == "__main__":
     unittest.main()

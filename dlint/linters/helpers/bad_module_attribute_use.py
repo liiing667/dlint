@@ -10,6 +10,7 @@ from __future__ import (
 import abc
 
 from .. import base
+from ... import dataflow
 from ... import tree
 from ... import util
 
@@ -39,14 +40,13 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
         super(BadModuleAttributeUseLinter, self).__init__(*args, **kwargs)
 
     def get_results(self):
-
         return [
             base.Flake8Result(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
+                lineno=bad_node.lineno,
+                col_offset=bad_node.col_offset,
                 message=self._error_tmpl
             )
-            for node in self.bad_nodes
+            for bad_node, origin in self.bad_nodes
         ]
 
     def visit_Name(self, node):
@@ -73,18 +73,80 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
         )
 
         if illegal_call_use:
-            self.bad_nodes.append(node)
+            origin = self.resolver.resolve(node)
+            self.bad_nodes.append((node, origin))
+            self.evidence.append([dataflow.format_evidence(origin)])
 
     def visit_Attribute(self, node):
         self.generic_visit(node)
 
-        module_path = tree.module_path_str(node.value)
+        origin = self.resolver.resolve(node)
+
+        # Wildcard imports cannot be resolved to a canonical path; fall back
+        # to the textual module path so existing wildcard behavior is kept.
+        if origin.state == dataflow.STATE_KNOWN and origin.module_path is not None:
+            if self._origin_is_instance_value(origin):
+                # The base value was constructed (e.g. 'up = pickle.Unpickler(f)'
+                # followed by 'up.load()'); the old textual linter could not
+                # track it, so stay silent to avoid a new false report.
+                return
+            resolved_module_path = origin.module_path
+        elif origin.state == dataflow.STATE_UNKNOWN or self._is_wildcard_base(node):
+            # Mirror the original textual check, which compares the base
+            # value path (node.value), not including node.attr.
+            resolved_module_path = tree.module_path_str(node.value)
+        else:
+            return
 
         illegal_attribute_use = any(
             node.attr in attributes
-            and self.namespace.illegal_module_imported(module_path, illegal_module_path)
+            and self._module_path_matches(
+                resolved_module_path, illegal_module_path, node
+            )
             for illegal_module_path, attributes in self.illegal_module_attributes.items()
         )
 
         if illegal_attribute_use:
-            self.bad_nodes.append(node)
+            if origin.state == dataflow.STATE_KNOWN:
+                self.evidence.append([dataflow.format_evidence(origin)])
+            else:
+                self.evidence.append([
+                    '{} -> {} (unresolved)'.format(
+                        resolved_module_path, origin.state
+                    )
+                ])
+            self.bad_nodes.append((node, origin))
+
+    def _is_wildcard_base(self, node):
+        top_level = any(
+            imp.module
+            and any(alias.name == '*' for alias in imp.names)
+            for imp in self.namespace.from_imports
+        )
+
+        if top_level:
+            return True
+
+        local_imports = self.resolver.local_imports_for(node)
+
+        if local_imports is None:
+            return False
+
+        return any(
+            imp.module
+            and any(alias.name == '*' for alias in imp.names)
+            for imp in local_imports[1]
+        )
+
+    @staticmethod
+    def _origin_is_instance_value(origin):
+        return any(record.kind == 'call' for record in origin.evidence)
+
+    def _module_path_matches(self, resolved_module_path, illegal_module_path, node):
+        # The rule key names the owning module (e.g. 'os') while the resolved
+        # path includes the attribute (e.g. 'os.system'); compare both forms.
+        if self.module_imported(
+                resolved_module_path, illegal_module_path, node):
+            return True
+
+        return tree.same_modules(illegal_module_path, resolved_module_path)

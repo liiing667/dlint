@@ -70,6 +70,23 @@ class Namespace(object):
 
         return None
 
+    def illegal_module_imported_with_local(self, module_path, illegal_module_path,
+                                           local_imports=None):
+        """Like illegal_module_imported but also considers function/class
+        local import lists collected by the data-flow resolver.
+        """
+        if self.illegal_module_imported(module_path, illegal_module_path):
+            return True
+
+        if not local_imports:
+            return False
+
+        local_namespace = Namespace(local_imports[0], local_imports[1])
+
+        return local_namespace.illegal_module_imported(
+            module_path, illegal_module_path
+        )
+
     @lru_cache(maxsize=1024)
     def illegal_module_imported(self, module_path, illegal_module_path):
         modules = module_path.split('.')

@@ -468,6 +468,90 @@ class TestBadNameAttributeUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_bad_name_attributes_alias_chain(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            def func():
+                cls = bar.Baz
+                obj = cls()
+                return obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=11,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+        assert linter.get_evidence()
+
+    def test_bad_name_attributes_dynamic_param_is_silent(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            def func(obj):
+                return obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        assert linter.get_results() == []
+
+    def test_bad_name_attributes_module_level_assignment(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            obj = bar.Baz()
+            obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

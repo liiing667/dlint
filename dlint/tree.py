@@ -10,6 +10,67 @@ from __future__ import (
 import ast
 import sys
 
+from . import dataflow
+
+
+# When set, kwarg predicates read keyword arguments (and scope-local
+# imports) from this context instead of their captured Call node. This lets
+# alias/attribute resolution present materialized values to legacy closure
+# predicates.
+_CALL_OVERRIDE = None
+_CALL_OVERRIDE_LOCAL_IMPORTS = None
+
+
+class call_override(object):
+    def __init__(self, resolved_call, local_imports=None):
+        self.resolved_call = resolved_call
+        self.local_imports = local_imports
+
+    def __enter__(self):
+        global _CALL_OVERRIDE
+        global _CALL_OVERRIDE_LOCAL_IMPORTS
+        _CALL_OVERRIDE = self.resolved_call
+        _CALL_OVERRIDE_LOCAL_IMPORTS = self.local_imports
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        global _CALL_OVERRIDE
+        global _CALL_OVERRIDE_LOCAL_IMPORTS
+        _CALL_OVERRIDE = None
+        _CALL_OVERRIDE_LOCAL_IMPORTS = None
+
+
+def _effective_call(call):
+    return _CALL_OVERRIDE if _CALL_OVERRIDE is not None else call
+
+
+def _effective_namespace(namespace):
+    if _CALL_OVERRIDE_LOCAL_IMPORTS is None:
+        return namespace
+
+    class _LocalNamespace(object):
+        def __getattr__(self, name):
+            return getattr(namespace, name)
+
+        def illegal_module_imported(self, module_path, illegal_module_path):
+            return namespace.illegal_module_imported_with_local(
+                module_path,
+                illegal_module_path,
+                _CALL_OVERRIDE_LOCAL_IMPORTS
+            )
+
+    return _LocalNamespace()
+
+
+def _is_str_node(node):
+    if hasattr(ast, 'Constant') and isinstance(node, ast.Constant):
+        return isinstance(node.value, str)
+
+    return hasattr(ast, 'Str') and isinstance(node, ast.Str)
+
+
+def _str_node_value(node):
+    return node.s if hasattr(node, 's') else node.value
+
 
 def decorator_name(decorator):
     if isinstance(decorator, ast.Attribute):
@@ -41,7 +102,7 @@ def function_is_empty(function):
         return (
             isinstance(node, ast.Raise)
             or isinstance(node, ast.Pass)
-            or (isinstance(node, ast.Expr) and isinstance(node.value, ast.Str))
+            or (isinstance(node, ast.Expr) and _is_str_node(node.value))
         )
 
     return all(
@@ -98,32 +159,32 @@ def walk_callback(node, callback, predicate=lambda n: True):
 
 
 def kwarg_present(call, kwarg_name):
+    call = _effective_call(call)
     return kwarg_name in (keyword.arg for keyword in call.keywords)
 
 
 def kwarg_not_present(call, kwarg_name):
+    call = _effective_call(call)
     return not kwarg_present(call, kwarg_name)
 
 
 def kwarg_primitive(call, kwarg_name, primitive):
-    try:
-        # Python 3
-        primitive_type = ast.NameConstant
+    call = _effective_call(call)
 
-        def comparator(keyword, inner_primitive):
-            return (
-                isinstance(keyword.value, primitive_type)
-                and keyword.value.value == inner_primitive
-            )
-    except AttributeError:
-        # Python 2, AttributeError on ast.NameConstant
-        primitive_type = ast.Name
+    def comparator(keyword, inner_primitive):
+        if hasattr(ast, 'Constant') and isinstance(keyword.value, ast.Constant):
+            # Python 3.8+ folds NameConstant/Num/Str into ast.Constant
+            return keyword.value.value == inner_primitive
 
-        def comparator(keyword, inner_primitive):
-            return (
-                isinstance(keyword.value, primitive_type)
-                and keyword.value.id == str(inner_primitive)
-            )
+        if hasattr(ast, 'NameConstant') and isinstance(
+                keyword.value, ast.NameConstant):
+            return keyword.value.value == inner_primitive
+
+        if isinstance(keyword.value, ast.Name):
+            # Python 2 style True/False/None names
+            return keyword.value.id == str(inner_primitive)
+
+        return False
 
     return any(
         keyword.arg == kwarg_name
@@ -145,15 +206,18 @@ def kwarg_none(call, kwarg_name):
 
 
 def kwarg_str(call, kwarg_name, s):
+    call = _effective_call(call)
     return any(
         keyword.arg == kwarg_name
-        and isinstance(keyword.value, ast.Str)
-        and keyword.value.s == s
+        and _is_str_node(keyword.value)
+        and _str_node_value(keyword.value) == s
         for keyword in call.keywords
     )
 
 
 def kwarg_module_path(call, kwarg_name, illegal_module_path, namespace):
+    call = _effective_call(call)
+    namespace = _effective_namespace(namespace)
     return any(
         keyword.arg == kwarg_name
         and isinstance(keyword.value, (ast.Attribute, ast.Name))
@@ -166,6 +230,8 @@ def kwarg_module_path(call, kwarg_name, illegal_module_path, namespace):
 
 
 def kwarg_module_path_call(call, kwarg_name, illegal_module_path, namespace):
+    call = _effective_call(call)
+    namespace = _effective_namespace(namespace)
     return any(
         keyword.arg == kwarg_name
         and isinstance(keyword.value, ast.Call)
@@ -184,6 +250,168 @@ def kwarg_any(kwarg_functions):
     true.
     """
     return any(kwarg_function() for kwarg_function in kwarg_functions)
+
+
+def kwarg_origin(call, kwarg_name, resolver):
+    """Resolve a keyword argument to the Origin of its value by following
+    assignments and aliases through the AST parent chain. Returns None when
+    the keyword is not present. A ResolvedCall exposes every keyword,
+    including unpacked and aliased ones, on the same path.
+    """
+    resolved = resolver.resolve_call(call)
+
+    for keyword in resolved.keywords:
+        if keyword.arg == kwarg_name:
+            return resolver.resolve(keyword.value)
+
+    return None
+
+
+def kwarg_present_origin(call, kwarg_name, resolver):
+    """Like kwarg_present but also matches values that reached the call via
+    an alias, e.g. 'arg = True; foo.bar(kwarg=arg)'.
+    """
+    return kwarg_origin(call, kwarg_name, resolver) is not None
+
+
+def kwarg_primitive_origin(call, kwarg_name, primitive, resolver):
+    origin = kwarg_origin(call, kwarg_name, resolver)
+
+    if origin is None:
+        return False
+
+    source = origin.source
+
+    if hasattr(ast, 'Constant') and isinstance(source, ast.Constant):
+        return source.value == primitive
+
+    if hasattr(ast, 'NameConstant') and isinstance(source, ast.NameConstant):
+        return source.value == primitive
+
+    if isinstance(source, ast.Name):
+        # Python 2 style True/False/None names
+        return source.id == str(primitive)
+
+    return False
+
+
+def kwarg_false_origin(call, kwarg_name, resolver):
+    return kwarg_primitive_origin(call, kwarg_name, False, resolver)
+
+
+def kwarg_true_origin(call, kwarg_name, resolver):
+    return kwarg_primitive_origin(call, kwarg_name, True, resolver)
+
+
+def kwarg_none_origin(call, kwarg_name, resolver):
+    return kwarg_primitive_origin(call, kwarg_name, None, resolver)
+
+
+def kwarg_str_origin(call, kwarg_name, s, resolver):
+    origin = kwarg_origin(call, kwarg_name, resolver)
+
+    if origin is None:
+        return False
+
+    return (
+        _is_str_node(origin.source)
+        and _str_node_value(origin.source) == s
+    )
+
+
+def kwarg_module_path_origin(call, kwarg_name, illegal_module_path, namespace, resolver):
+    """Like kwarg_module_path but resolves aliases and nested attributes,
+    e.g. 'from ssl import CERT_NONE as cn; pool(cert_reqs=cn)'.
+    """
+    origin = kwarg_origin(call, kwarg_name, resolver)
+
+    if origin is None:
+        return False
+
+    if origin.state != dataflow.STATE_KNOWN or origin.module_path is None:
+        return False
+
+    return namespace.illegal_module_imported(
+        origin.module_path,
+        illegal_module_path
+    )
+
+
+def kwarg_module_path_call_origin(call, kwarg_name, illegal_module_path, namespace, resolver):
+    """Like kwarg_module_path_call but follows the resolved call origin."""
+    origin = kwarg_origin(call, kwarg_name, resolver)
+
+    if origin is None:
+        return False
+
+    if origin.state != dataflow.STATE_KNOWN or origin.module_path is None:
+        return False
+
+    return namespace.illegal_module_imported(
+        origin.module_path,
+        illegal_module_path
+    )
+
+
+def _partial_kwargs(partial_func):
+    try:
+        import functools
+    except ImportError:
+        return None
+
+    if not isinstance(partial_func, functools.partial):
+        return None
+
+    return {
+        'func': partial_func.func,
+        'args': partial_func.args,
+        'keywords': partial_func.keywords,
+    }
+
+
+def kwarg_predicate_origin(call, kwarg_name, predicate, illegal_module_path,
+                           namespace, resolver, origin=None):
+    """Run a rule predicate against the data-flow resolved keyword value.
+
+    Supports the plain tree.kwarg_* predicates as well as functools.partial
+    wrappers around kwarg_str and kwarg_module_path(_call), so that aliased
+    and unpacked keyword arguments stay on the same evidence path.
+    """
+    if origin is None:
+        origin = kwarg_origin(call, kwarg_name, resolver)
+
+    if origin is None:
+        return False
+
+    if predicate is kwarg_str:
+        return kwarg_str_origin(call, kwarg_name, illegal_module_path, resolver)
+
+    partial_info = _partial_kwargs(predicate)
+
+    if partial_info is not None:
+        inner = partial_info['func']
+        args = partial_info['args']
+        keywords = partial_info['keywords']
+
+        if inner is kwarg_str:
+            target = keywords.get('s', args[-1] if args else None)
+            return (
+                _is_str_node(origin.source)
+                and _str_node_value(origin.source) == target
+            )
+
+        if inner in (kwarg_module_path, kwarg_module_path_call):
+            target = keywords.get('illegal_module_path', args[-2] if len(args) >= 2 else None)
+            local_imports = resolver.local_imports_for(call)
+            return (
+                origin.state == dataflow.STATE_KNOWN
+                and origin.module_path is not None
+                and namespace.illegal_module_imported_with_local(
+                    origin.module_path, target, local_imports
+                )
+            )
+
+    return False
 
 
 def module_path(node):

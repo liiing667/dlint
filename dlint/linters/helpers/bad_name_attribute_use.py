@@ -9,16 +9,10 @@ from __future__ import (
 
 import abc
 import ast
-import collections
 
 from .. import base
-from ... import tree
+from ... import dataflow
 from ... import util
-
-Assignment = collections.namedtuple(
-    'Assignment',
-    ['variable', 'module_path', 'lineno', 'col_offset']
-)
 
 
 class BadNameAttributeUseLinter(base.BaseLinter, util.ABC):
@@ -42,77 +36,56 @@ class BadNameAttributeUseLinter(base.BaseLinter, util.ABC):
 
     def visit_FunctionDef(self, node):
         self.generic_visit(node)
+        self._check_calls(node)
 
-        targets = []
+    def visit_Module(self, node):
+        self.generic_visit(node)
+        self._check_calls(node)
 
-        def variable_assignment_callback(inner_node):
-            if not (isinstance(inner_node, ast.Assign)
-                    and isinstance(inner_node.value, ast.Call)):
-                return
-
-            module_path = tree.module_path_str(inner_node.value.func)
-            targets.extend(
-                Assignment(
-                    variable=target.id,
-                    module_path=module_path,
-                    lineno=inner_node.lineno,
-                    col_offset=inner_node.col_offset,
-                )
-                for target in inner_node.targets
-                if isinstance(target, ast.Name)
-            )
-
-        tree.walk_callback_same_scope(node, variable_assignment_callback)
-
-        results = []
-
-        def attribute_use_callback(inner_node):
+    def _check_calls(self, scope_node):
+        for inner_node in ast.walk(scope_node):
             if not (isinstance(inner_node, ast.Call)
                     and isinstance(inner_node.func, ast.Attribute)
                     and isinstance(inner_node.func.value, ast.Name)):
-                return
+                continue
 
-            variable = inner_node.func.value.id
+            # Only inspect calls that belong to this scope so nested
+            # function/class rebindings cannot leak outward.
+            if dataflow.enclosing_scope(inner_node) is not scope_node:
+                continue
+
+            if getattr(inner_node, '_dlint_name_attribute_checked', False):
+                continue
+
+            inner_node._dlint_name_attribute_checked = True
+
             attribute = inner_node.func.attr
 
-            illegal_calls = [
-                target for target in targets
-                if target.variable == variable
-                and attribute in self.illegal_name_attributes
-                and any(
-                    self.namespace.illegal_module_imported(
-                        target.module_path,
-                        illegal_name
-                    )
-                    for illegal_name in self.illegal_name_attributes[attribute]
+            if attribute not in self.illegal_name_attributes:
+                continue
+
+            origin = self.resolver.resolve(inner_node.func.value)
+
+            if origin.state != dataflow.STATE_KNOWN or origin.module_path is None:
+                # Dynamic/unknown value source: keep the explicit state and
+                # do not raise on clean code.
+                continue
+
+            is_illegal = any(
+                self.module_imported(
+                    origin.module_path,
+                    illegal_name,
+                    inner_node
                 )
-            ]
-
-            try:
-                latest_variable_assignment = max(
-                    [
-                        target for target in targets
-                        if target.variable == variable
-                    ],
-                    key=lambda target: (target.lineno, target.col_offset)
-                )
-            except ValueError:
-                # No variable name matches
-                return
-
-            if latest_variable_assignment in illegal_calls:
-                results.append(inner_node)
-
-        tree.walk_callback_same_scope(node, attribute_use_callback)
-
-        self.results.extend(
-            base.Flake8Result(
-                lineno=result.lineno,
-                col_offset=result.col_offset,
-                message=self._error_tmpl
+                for illegal_name in self.illegal_name_attributes[attribute]
             )
-            for result in results
-        )
+
+            if is_illegal:
+                self.append_result(
+                    inner_node,
+                    self._error_tmpl,
+                    origin=origin
+                )
 
     def visit_AsyncFunctionDef(self, node):
         self.visit_FunctionDef(node)
