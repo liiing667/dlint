@@ -16,6 +16,9 @@ import sys
 from flake8 import style_guide
 
 import dlint
+import dlint.limits
+
+limits = dlint.limits
 
 
 class Flake8Extension(object):
@@ -23,9 +26,11 @@ class Flake8Extension(object):
     version = dlint.__version__
     options = None
 
-    def __init__(self, tree, filename):
+    def __init__(self, tree, filename, budget=None):
         self.tree = tree
         self.filename = filename
+        self.budget = budget or self.build_budget()
+        self.incomplete = None
 
     @classmethod
     def add_options(cls, parser):
@@ -35,6 +40,30 @@ class Flake8Extension(object):
                 action='store_true',
                 help='Print Dlint linter information.',
                 parse_from_config=False
+            )
+            parser.add_option(
+                '--dlint-max-file-bytes',
+                action='store',
+                type='int',
+                default=limits.DEFAULT_MAX_FILE_BYTES,
+                help='Maximum source file size in bytes Dlint will scan.',
+                parse_from_config=True
+            )
+            parser.add_option(
+                '--dlint-max-ast-nodes',
+                action='store',
+                type='int',
+                default=limits.DEFAULT_MAX_AST_NODES,
+                help='Maximum number of AST nodes Dlint will visit per file.',
+                parse_from_config=True
+            )
+            parser.add_option(
+                '--dlint-max-results',
+                action='store',
+                type='int',
+                default=limits.DEFAULT_MAX_RESULTS,
+                help='Maximum number of results Dlint will report per file.',
+                parse_from_config=True
             )
         except optparse.OptionConflictError:
             # Occurs during development when flake8 detects the dlint package
@@ -57,6 +86,51 @@ class Flake8Extension(object):
             sys.exit(EX_OK)
 
         cls.options = options
+        cls.budget_limits = cls._budget_limits_from_options(options)
+
+    @staticmethod
+    def _budget_limits_from_options(options):
+        return (
+            getattr(options, 'dlint_max_file_bytes',
+                    limits.DEFAULT_MAX_FILE_BYTES),
+            getattr(options, 'dlint_max_ast_nodes',
+                    limits.DEFAULT_MAX_AST_NODES),
+            getattr(options, 'dlint_max_results',
+                    limits.DEFAULT_MAX_RESULTS),
+        )
+
+    @classmethod
+    def build_budget(cls):
+        budget_limits = getattr(cls, 'budget_limits', None)
+        if budget_limits is None:
+            return limits.ResourceBudget()
+        return limits.ResourceBudget(*budget_limits)
+
+    def _mark_incomplete(self, exc):
+        self.incomplete = limits.describe_failure(exc)
+
+    def _enforce_budgets(self):
+        """Enforce the shared file and AST budgets before running linters.
+
+        On-disk files are re-read through the file budget so oversized or
+        undecodable source is rejected early. Trees handed in directly,
+        e.g. flake8 stdin processing, are charged against the AST budget.
+        """
+        if limits.is_real_file(self.filename):
+            source = limits.read_source(self.filename, self.budget)
+            self.tree = limits.parse_source(
+                source, self.budget, self.filename
+            )
+        else:
+            limits.count_ast_nodes(self.tree, self.budget)
+
+    def _incomplete_result(self):
+        return (
+            1,
+            0,
+            limits.incomplete_message(self.incomplete),
+            type(self)
+        )
 
     @classmethod
     def get_plugin_linter_classes(cls):
@@ -92,12 +166,32 @@ class Flake8Extension(object):
         return linter_classes
 
     def run(self):
+        try:
+            self._enforce_budgets()
+        except (limits.BudgetExceeded, limits.UnreadableSource) as exc:
+            self._mark_incomplete(exc)
+            yield self._incomplete_result()
+            return
+
         linter_instances = [l() for l in self.get_linter_classes()]
         multi_visitor = dlint.multi.MultiNodeVisitor(linter_instances)
-        multi_visitor.visit(self.tree)
+
+        try:
+            multi_visitor.visit(self.tree)
+        except MemoryError as exc:
+            self._mark_incomplete(exc)
+            yield self._incomplete_result()
+            return
 
         for linter_instance in linter_instances:
             for result in linter_instance.get_results():
+                try:
+                    self.budget.charge_result()
+                except limits.BudgetExceeded as exc:
+                    self._mark_incomplete(exc)
+                    yield self._incomplete_result()
+                    return
+
                 yield (
                     result.lineno,
                     result.col_offset,
