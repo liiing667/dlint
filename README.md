@@ -85,6 +85,27 @@ To fine-tune your linting, check out the `flake8` help:
 $ python -m flake8 --help
 ```
 
+## Resource Budget
+
+Dlint shares a single resource budget across the three stages of every scan:
+reading the source file, walking the AST, and reporting results. This prevents
+an oversized or encoding-odd source file from exhausting memory before any rule
+runs while still being reported as if it were clean.
+
+The budget limit defaults to `10485760` abstract units, where file bytes, AST
+nodes, and reported findings each draw from the same pool. The limit can be
+changed on the command line or in any `flake8` config file:
+
+```
+$ python -m flake8 --select=DUO --dlint-budget-limit=10485760 /path/to/code
+```
+
+When a file cannot be decoded, or when a stage exhausts the shared budget,
+Dlint stops scanning that file and emits a visible `DUO139` incomplete-scan
+diagnostic instead of silently producing no results. Files that stay within
+the budget continue to be scanned normally, and findings already collected are
+reported ahead of the `DUO139` marker.
+
 ## Inline Editor
 
 Dlint results can also be included inline in your editor for fast feedback.

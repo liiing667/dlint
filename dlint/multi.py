@@ -7,19 +7,18 @@ from __future__ import (
     unicode_literals,
 )
 
-import ast
-
+from . import budget
 from . import namespace
 
 
-class MultiNodeVisitor(ast.NodeVisitor):
-    def __init__(self, linters, *args, **kwargs):
+class MultiNodeVisitor(budget.BudgetedNodeVisitor):
+    def __init__(self, linters, scan_budget, *args, **kwargs):
         self.linters = linters
         self.namespace = None
 
-        super(MultiNodeVisitor, self).__init__(*args, **kwargs)
+        super(MultiNodeVisitor, self).__init__(scan_budget, *args, **kwargs)
 
-    def visit(self, node):
+    def dispatch(self, node):
         if not self.namespace:
             # Assuming that 'visit' is always called the first time with 'node'
             # as an ast.Module. If not, we should fail fast with a raised
