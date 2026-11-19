@@ -468,6 +468,41 @@ class TestBadNameAttributeUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_bad_name_attributes_multiline_points_at_sink(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            def func():
+                obj = bar.Baz()
+                return (
+                    obj.foo(
+                        var
+                    )
+                )
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=8,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

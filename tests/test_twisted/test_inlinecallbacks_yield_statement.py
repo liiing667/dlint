@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
-import sys
 import unittest
 
 import dlint
-
-IS_PYTHON_3_8 = sys.version_info >= (3, 8)
 
 
 class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
@@ -180,8 +177,8 @@ class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=5 if IS_PYTHON_3_8 else 4,
-                col_offset=0,
+                lineno=4,
+                col_offset=1,
                 message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
             )
         ]
@@ -211,8 +208,8 @@ class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=5 if IS_PYTHON_3_8 else 4,
-                col_offset=0,
+                lineno=4,
+                col_offset=1,
                 message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
             )
         ]
@@ -243,8 +240,8 @@ class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=5 if IS_PYTHON_3_8 else 4,
-                col_offset=0,
+                lineno=4,
+                col_offset=1,
                 message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
             )
         ]
@@ -275,8 +272,8 @@ class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=9 if IS_PYTHON_3_8 else 8,
-                col_offset=4,
+                lineno=8,
+                col_offset=5,
                 message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
             )
         ]
@@ -381,8 +378,8 @@ class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=5 if IS_PYTHON_3_8 else 4,
-                col_offset=0,
+                lineno=4,
+                col_offset=1,
                 message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
             )
         ]
@@ -408,6 +405,58 @@ class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
 
         result = linter.get_results()
         expected = []
+
+        assert result == expected
+
+    def test_missing_yield_points_at_decorator_sink(self):
+        python_node = self.get_ast_node(
+            """
+            from twisted.internet import defer
+
+            @defer.inlineCallbacks
+            def func(arg):
+                return
+            """
+        )
+
+        linter = dlint.linters.InlineCallbacksYieldStatementLinter()
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=4,
+                col_offset=1,
+                message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_missing_yield_multiline_decorator(self):
+        python_node = self.get_ast_node(
+            """
+            from twisted.internet import defer
+
+            @(
+                defer.inlineCallbacks
+            )
+            def func(arg):
+                return
+            """
+        )
+
+        linter = dlint.linters.InlineCallbacksYieldStatementLinter()
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=4,
+                message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
+            )
+        ]
 
         assert result == expected
 

@@ -8,7 +8,6 @@ from __future__ import (
 )
 
 from .helpers import bad_builtin_use
-from . import base
 
 
 class BadExecUseLinter(bad_builtin_use.BadBuiltinUseLinter):
@@ -23,13 +22,7 @@ class BadExecUseLinter(bad_builtin_use.BadBuiltinUseLinter):
 
     # Python 2
     def visit_Exec(self, node):
-        self.results.append(
-            base.Flake8Result(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                message=self._error_tmpl
-            )
-        )
+        self.append_node_result(node)
 
     @property
     def illegal_builtin(self):

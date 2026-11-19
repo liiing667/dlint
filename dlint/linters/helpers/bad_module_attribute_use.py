@@ -39,15 +39,28 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
         super(BadModuleAttributeUseLinter, self).__init__(*args, **kwargs)
 
     def get_results(self):
-
         return [
-            base.Flake8Result(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                message=self._error_tmpl
-            )
-            for node in self.bad_nodes
+            base.result_from_node(node, self._error_tmpl)
+            for node in self._deduplicated_bad_nodes()
         ]
+
+    def _deduplicated_bad_nodes(self):
+        """Merge duplicate sink nodes stably in first-seen order. Node
+        identity, rather than position, is used as the key so results remain
+        stable even when location data is missing."""
+        seen = set()
+        deduplicated = []
+
+        for node in self.bad_nodes:
+            node_key = id(node)
+
+            if node_key in seen:
+                continue
+
+            seen.add(node_key)
+            deduplicated.append(node)
+
+        return deduplicated
 
     def visit_Name(self, node):
         def illegal_import_with_name_resolution(name, attributes, illegal_module_path):
@@ -73,7 +86,7 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
         )
 
         if illegal_call_use:
-            self.bad_nodes.append(node)
+            self.bad_nodes.append(tree.sink_node(node))
 
     def visit_Attribute(self, node):
         self.generic_visit(node)
@@ -87,4 +100,4 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
         )
 
         if illegal_attribute_use:
-            self.bad_nodes.append(node)
+            self.bad_nodes.append(tree.sink_node(node))

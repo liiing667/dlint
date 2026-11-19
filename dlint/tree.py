@@ -97,6 +97,46 @@ def walk_callback(node, callback, predicate=lambda n: True):
         walk_callback(child_node, callback, predicate=predicate)
 
 
+def sink_node(node):
+    """Return the actual sink node for a finding. Calls report against the
+    called expression (e.g. ``pickle.loads`` inside ``pickle.loads(x)``) so
+    the finding points at the dangerous operation itself instead of the
+    enclosing statement. All other node types are returned unchanged.
+    """
+    if isinstance(node, ast.Call):
+        return node.func
+
+    return node
+
+
+def node_has_location(node):
+    """Whether ``node`` carries concrete source position information."""
+    return (
+        getattr(node, 'lineno', None) is not None
+        and getattr(node, 'col_offset', None) is not None
+    )
+
+
+def node_start_position(node):
+    """Return the ``(lineno, col_offset)`` where ``node`` begins, falling
+    back to the first located child for nodes without location data."""
+    if node_has_location(node):
+        return node.lineno, node.col_offset
+
+    for child_node in ast.walk(node):
+        if node_has_location(child_node):
+            return child_node.lineno, child_node.col_offset
+
+    return None
+
+
+def decorator_start_position(decorator):
+    """Return the source ``(lineno, col_offset)`` of a decorator expression.
+    Decorators without location data (e.g. some synthesized Python 2 style
+    ``ast.Name`` decorators) explicitly return ``None``."""
+    return node_start_position(decorator)
+
+
 def kwarg_present(call, kwarg_name):
     return kwarg_name in (keyword.arg for keyword in call.keywords)
 

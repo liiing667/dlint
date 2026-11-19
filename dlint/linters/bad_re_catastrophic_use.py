@@ -76,11 +76,7 @@ class BadReCatastrophicUseLinter(bad_module_attribute_use.BadModuleAttributeUseL
             return redos.detect.catastrophic(pattern.s)
 
         return [
-            base.Flake8Result(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                message=self._error_tmpl
-            )
-            for node in self.bad_nodes
+            base.result_from_node(node, self._error_tmpl)
+            for node in self._deduplicated_bad_nodes()
             if pattern_is_catastrophic(node)
         ]

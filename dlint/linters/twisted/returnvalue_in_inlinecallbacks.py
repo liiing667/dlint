@@ -36,11 +36,6 @@ class ReturnValueInInlineCallbacksLinter(base.BaseLinter):
 
         tree.walk_callback_same_scope(node, returnvalue_statement_callback)
 
-        if results:
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
-            )
+        self.extend_node_results(
+            tree.sink_node(result) for result in results
+        )

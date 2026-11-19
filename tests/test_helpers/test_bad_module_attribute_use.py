@@ -637,6 +637,111 @@ class TestBadModuleAttributeUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_multiline_module_attribute_usage(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            var = (
+                foo.bar(
+                    var
+                )
+            )
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=4,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_duplicate_nodes_merged_stably(self):
+        import ast
+
+        first = ast.Attribute(
+            value=ast.Name(id='foo', ctx=ast.Load(), lineno=4, col_offset=0),
+            attr='bar',
+            ctx=ast.Load(),
+            lineno=4,
+            col_offset=4
+        )
+        second = ast.Attribute(
+            value=ast.Name(id='foo', ctx=ast.Load(), lineno=5, col_offset=0),
+            attr='bar',
+            ctx=ast.Load(),
+            lineno=5,
+            col_offset=4
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.bad_nodes.extend([first, second, first])
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=4,
+                col_offset=4,
+                message=linter._error_tmpl
+            ),
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=4,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_multiple_distinct_sinks_reported_in_order(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            foo.bar(var)
+            foo.bar(var)
+            foo.bar(var)
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        assert [r.lineno for r in result] == [4, 5, 6]
+
+    def test_unknown_location_explicitly_marked(self):
+        import ast
+
+        node = ast.parse("import foo\nfoo.bar(var)").body[1].value.func
+
+        # Simulate a synthesized node without source location information
+        node.lineno = None
+        node.col_offset = None
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.bad_nodes.append(node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=dlint.linters.base.UNKNOWN_LINENO,
+                col_offset=dlint.linters.base.UNKNOWN_COL_OFFSET,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,10 +42,23 @@ class InlineCallbacksYieldStatementLinter(base.BaseLinter):
         tree.walk_callback_same_scope(node, yield_statement_callback)
 
         if not results:
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
+            self.append_node_result(
+                self._inlinecallbacks_decorator(node)
             )
+
+    @staticmethod
+    def _inlinecallbacks_decorator(node):
+        """Return the actual ``inlineCallbacks`` decorator node so the
+        finding points at the decorator sink rather than the function
+        definition line. Falls back to the function node when the decorator
+        carries no location information."""
+        decorators = [
+            decorator
+            for decorator in node.decorator_list
+            if tree.decorator_name(decorator) == 'inlineCallbacks'
+        ]
+
+        if not decorators or not tree.node_has_location(decorators[0]):
+            return node
+
+        return decorators[0]

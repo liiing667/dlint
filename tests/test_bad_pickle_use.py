@@ -54,6 +54,33 @@ class TestBadPickleUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_bad_pickle_multiline_usage_points_at_sink(self):
+        python_node = self.get_ast_node(
+            """
+            import pickle
+
+            var = (
+                pickle.loads(
+                    var
+                )
+            )
+            """
+        )
+
+        linter = dlint.linters.BadPickleUseLinter()
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=4,
+                message=dlint.linters.BadPickleUseLinter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

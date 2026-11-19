@@ -535,6 +535,91 @@ class TestBadKwargUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_multiline_kwarg_usage_points_at_sink(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            x = (
+                foo.bar(
+                    kwarg="test"
+                )
+            )
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=4,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_duplicate_results_merged_stably(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            foo.bar(kwarg="test")
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        call_node = python_node.body[1].value
+        linter.visit(python_node)
+        linter.results = []
+        linter.visit_Call(call_node)
+        linter.visit_Call(call_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=4,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_unknown_location_explicitly_marked(self):
+        import ast
+
+        node = ast.Name(id='foo')
+
+        message = 'message'
+        result = dlint.linters.base.result_from_node(node, message)
+        expected = dlint.linters.base.Flake8Result(
+            lineno=dlint.linters.base.UNKNOWN_LINENO,
+            col_offset=dlint.linters.base.UNKNOWN_COL_OFFSET,
+            message=message
+        )
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

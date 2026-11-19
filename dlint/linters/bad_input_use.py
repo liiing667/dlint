@@ -11,6 +11,7 @@ import ast
 import sys
 
 from . import base
+from .. import tree
 
 
 class BadInputUseLinter(base.BaseLinter):
@@ -35,13 +36,7 @@ class BadInputUseLinter(base.BaseLinter):
                 and self.unsafe_input_import
                 and isinstance(node.func, ast.Name)
                 and node.func.id == 'input'):
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
-            )
+            self.append_node_result(tree.sink_node(node))
 
     def visit_ImportFrom(self, node):
         # Using input from six.moves is valid, so if input is imported
