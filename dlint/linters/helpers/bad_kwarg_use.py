@@ -12,7 +12,6 @@ import ast
 import itertools
 
 from .. import base
-from ... import tree
 from ... import util
 
 
@@ -96,16 +95,18 @@ class BadKwargUseLinter(base.BaseLinter, util.ABC):
         if not isinstance(node.func, (ast.Attribute, ast.Name)):
             return
 
-        bad_kwarg = self.minimized_bad_kwarg_func(
-            tree.module_path_str(node.func),
-            node
-        )
+        origin = self.resolver.resolve(node.func)
+
+        # An unknown dynamic call (getattr, subscript dispatch, etc.) is not
+        # treated as safe: keep the explicit state so rules can distinguish
+        # confirmed clean code from unresolvable code.
+        if origin.state != 'known':
+            return
+
+        bad_kwarg = self.minimized_bad_kwarg_func(origin.module_path, node)
 
         if bad_kwarg:
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
+            self.append_result(
+                node,
+                evidence=origin.steps
             )

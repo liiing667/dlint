@@ -9,7 +9,9 @@ from __future__ import (
 
 import ast
 
+from . import dataflow
 from . import namespace
+from . import parents
 
 
 class MultiNodeVisitor(ast.NodeVisitor):
@@ -25,8 +27,11 @@ class MultiNodeVisitor(ast.NodeVisitor):
             # as an ast.Module. If not, we should fail fast with a raised
             # exception and investigate.
             self.namespace = namespace.Namespace.from_module_node(node)
+            parents.attach_parents(node)
+            resolver = dataflow.DataflowResolver(node, self.namespace)
             for linter in self.linters:
                 linter.namespace = self.namespace
+                linter.resolver = resolver
 
         # Python 2 cannot rebind free variables, i.e. 'nonlocal'
         nonlocal_hack = {'any_recurse': False}

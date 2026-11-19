@@ -52,7 +52,14 @@ class Namespace(object):
     def name_imported(self, name):
         def alias_includes_name(alias):
             return (
-                (alias.name == name and alias.asname is None)
+                (
+                    alias.asname is None
+                    and (
+                        alias.name == name
+                        # 'import foo.bar' binds the top-level name 'foo'
+                        or alias.name.split('.')[0] == name
+                    )
+                )
                 or (alias.asname == name)
             )
 
@@ -98,11 +105,46 @@ class Namespace(object):
                 if modules[0] in [alias.name, alias.asname]:
                     # 'from foo.bar import baz as qux', 'qux.quine' -> 'foo.bar.baz.quine'
                     canonicalized_modules = imp_modules + [alias.name] + modules[1:]
-                if (util.lstartswith(illegal_modules, imp_modules)
-                        and illegal_modules[len(imp_modules):] == modules
-                        and alias.name == '*'):
-                    # 'from foo.bar import *', 'baz.qux' -> 'foo.bar.baz.qux'
-                    module_imported = True
-                    canonicalized_modules = imp_modules + modules
+                if alias.name == '*' and util.lstartswith(
+                    illegal_modules, imp_modules
+                ):
+                    # 'from foo.bar import *' can reach the caller in two
+                    # shapes: a relative path ('baz.qux', the legacy calling
+                    # convention) or the fully resolved path
+                    # ('foo.bar.baz.qux') produced by the data-flow resolver.
+                    relative_modules = illegal_modules[len(imp_modules):]
+                    resolved_modules = imp_modules + relative_modules
 
-        return module_imported and (canonicalized_modules == illegal_modules)
+                    if relative_modules == modules:
+                        # Legacy relative path: canonicalize to the full path.
+                        module_imported = True
+                        canonicalized_modules = resolved_modules
+                    elif (
+                        util.lstartswith(modules, imp_modules)
+                        and self._matches_illegal_path(
+                            modules,
+                            illegal_modules
+                        )
+                    ):
+                        # Already fully resolved, possibly with extra nested
+                        # attributes accessed on the illegal origin.
+                        module_imported = True
+                        canonicalized_modules = modules
+
+        return module_imported and self._matches_illegal_path(
+            canonicalized_modules,
+            illegal_modules
+        )
+
+    @staticmethod
+    def _matches_illegal_path(modules, illegal_modules):
+        # A resolved value that originates from an illegal importable path
+        # remains illegal when further attributes are accessed on it, e.g.
+        # blacklisting 'foo.bar' must also cover 'foo.bar.baz.qux'.
+        return (
+            modules == illegal_modules
+            or (
+                len(modules) > len(illegal_modules)
+                and util.lstartswith(modules, illegal_modules)
+            )
+        )

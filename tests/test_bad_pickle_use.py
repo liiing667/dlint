@@ -49,6 +49,13 @@ class TestBadPickleUse(dlint.test.base.BaseTest):
                 lineno=10,
                 col_offset=9,
                 message=dlint.linters.BadPickleUseLinter._error_tmpl
+            ),
+            # 'up' originates from the blacklisted 'pickle.Unpickler', so
+            # calling an attribute on it is traced back to that origin.
+            dlint.linters.base.Flake8Result(
+                lineno=11,
+                col_offset=4,
+                message=dlint.linters.BadPickleUseLinter._error_tmpl
             )
         ]
 

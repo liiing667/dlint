@@ -468,6 +468,215 @@ class TestBadNameAttributeUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_bad_name_attributes_aliased_constructor(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            def func():
+                ctor = bar.Baz
+                obj = ctor()
+                return obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=11,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+        # The evidence path connects the attribute sink back through the
+        # constructor alias to its originating importable value.
+        assert [step.kind for step in result[0].evidence] == [
+            'alias',
+            'call',
+        ]
+        assert result[0].evidence[-1].description == 'bar.Baz'
+
+    def test_bad_name_attributes_nested_attribute_constructor(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            def func():
+                holder = bar
+                obj = holder.Baz()
+                return obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=11,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_bad_name_attributes_dynamic_constructor_does_not_fire(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            def func():
+                obj = make_baz()
+                return obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        assert result == []
+
+    def test_bad_name_attributes_aliased_safe_constructor_does_not_fire(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            def func():
+                ctor = bar.Qux
+                obj = ctor()
+                return obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        assert result == []
+
+    def test_bad_name_attributes_module_scope(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            obj = bar.Baz()
+            obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_bad_name_attributes_class_body(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            class Holder(object):
+                obj = bar.Baz()
+                obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=6,
+                col_offset=4,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_bad_name_attributes_class_scope_not_leaked_into_method(self):
+        python_node = self.get_ast_node(
+            """
+            import bar
+
+            class Holder(object):
+                obj = bar.Baz()
+
+                def method(self):
+                    obj.foo()
+            """
+        )
+
+        linter = get_bad_name_attribute_use_implementation(
+            {
+                'foo': [
+                    'bar.Baz',
+                ],
+            }
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        # Class scopes do not leak into method bodies, so the bare name
+        # inside the method must not resolve to the class attribute.
+        assert result == []
+
 
 if __name__ == "__main__":
     unittest.main()

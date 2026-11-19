@@ -9,16 +9,10 @@ from __future__ import (
 
 import abc
 import ast
-import collections
 
 from .. import base
 from ... import tree
 from ... import util
-
-Assignment = collections.namedtuple(
-    'Assignment',
-    ['variable', 'module_path', 'lineno', 'col_offset']
-)
 
 
 class BadNameAttributeUseLinter(base.BaseLinter, util.ABC):
@@ -40,30 +34,22 @@ class BadNameAttributeUseLinter(base.BaseLinter, util.ABC):
             }
         """
 
+    def visit_Module(self, node):
+        self.generic_visit(node)
+        self._lint_scope(node)
+
+    def visit_ClassDef(self, node):
+        self.generic_visit(node)
+        self._lint_scope(node)
+
     def visit_FunctionDef(self, node):
         self.generic_visit(node)
+        self._lint_scope(node)
 
-        targets = []
+    def visit_AsyncFunctionDef(self, node):
+        self.visit_FunctionDef(node)
 
-        def variable_assignment_callback(inner_node):
-            if not (isinstance(inner_node, ast.Assign)
-                    and isinstance(inner_node.value, ast.Call)):
-                return
-
-            module_path = tree.module_path_str(inner_node.value.func)
-            targets.extend(
-                Assignment(
-                    variable=target.id,
-                    module_path=module_path,
-                    lineno=inner_node.lineno,
-                    col_offset=inner_node.col_offset,
-                )
-                for target in inner_node.targets
-                if isinstance(target, ast.Name)
-            )
-
-        tree.walk_callback_same_scope(node, variable_assignment_callback)
-
+    def _lint_scope(self, scope_node):
         results = []
 
         def attribute_use_callback(inner_node):
@@ -72,47 +58,42 @@ class BadNameAttributeUseLinter(base.BaseLinter, util.ABC):
                     and isinstance(inner_node.func.value, ast.Name)):
                 return
 
-            variable = inner_node.func.value.id
             attribute = inner_node.func.attr
-
-            illegal_calls = [
-                target for target in targets
-                if target.variable == variable
-                and attribute in self.illegal_name_attributes
-                and any(
-                    self.namespace.illegal_module_imported(
-                        target.module_path,
-                        illegal_name
-                    )
-                    for illegal_name in self.illegal_name_attributes[attribute]
-                )
-            ]
-
-            try:
-                latest_variable_assignment = max(
-                    [
-                        target for target in targets
-                        if target.variable == variable
-                    ],
-                    key=lambda target: (target.lineno, target.col_offset)
-                )
-            except ValueError:
-                # No variable name matches
+            if attribute not in self.illegal_name_attributes:
                 return
 
-            if latest_variable_assignment in illegal_calls:
-                results.append(inner_node)
+            # Resolve the object the attribute is called on back to the
+            # constructor call (or import) that created it. Aliases,
+            # forwarded values, and nested attributes are all followed as
+            # one data-flow path with evidence collected at every hop.
+            origin = self.resolver.resolve(inner_node.func.value)
 
-        tree.walk_callback_same_scope(node, attribute_use_callback)
+            if origin.state != 'known':
+                # Explicitly unknown dynamic values are never reported so
+                # clean, statically-unresolvable code cannot false positive.
+                return
+
+            is_illegal = any(
+                self.namespace.illegal_module_imported(
+                    origin.module_path,
+                    illegal_name
+                )
+                for illegal_name in self.illegal_name_attributes[attribute]
+            )
+
+            if is_illegal:
+                results.append((inner_node, origin.steps))
+
+        # Stops at nested scope boundaries, so each binding is evaluated
+        # against the scope where the attribute call actually lives.
+        tree.walk_callback_same_scope(scope_node, attribute_use_callback)
 
         self.results.extend(
             base.Flake8Result(
                 lineno=result.lineno,
                 col_offset=result.col_offset,
-                message=self._error_tmpl
+                message=self._error_tmpl,
+                evidence=steps
             )
-            for result in results
+            for result, steps in results
         )
-
-    def visit_AsyncFunctionDef(self, node):
-        self.visit_FunctionDef(node)

@@ -11,6 +11,23 @@ import ast
 import sys
 
 
+# Python 3.8+ uses ast.Constant for literals. The legacy ast.Str node type
+# was removed in Python 3.12, so normalize string checks here to keep the
+# rest of the codebase version agnostic.
+if hasattr(ast, 'Constant'):
+    def is_string_constant(node):
+        return isinstance(node, ast.Constant) and isinstance(node.value, str)
+
+    def string_constant_value(node):
+        return node.value
+else:
+    def is_string_constant(node):
+        return isinstance(node, ast.Str)
+
+    def string_constant_value(node):
+        return node.s
+
+
 def decorator_name(decorator):
     if isinstance(decorator, ast.Attribute):
         # E.g. @module.decorator
@@ -41,7 +58,10 @@ def function_is_empty(function):
         return (
             isinstance(node, ast.Raise)
             or isinstance(node, ast.Pass)
-            or (isinstance(node, ast.Expr) and isinstance(node.value, ast.Str))
+            or (
+                isinstance(node, ast.Expr)
+                and is_string_constant(node.value)
+            )
         )
 
     return all(
@@ -106,22 +126,17 @@ def kwarg_not_present(call, kwarg_name):
 
 
 def kwarg_primitive(call, kwarg_name, primitive):
-    try:
-        # Python 3
-        primitive_type = ast.NameConstant
-
+    if hasattr(ast, 'Constant'):
         def comparator(keyword, inner_primitive):
             return (
-                isinstance(keyword.value, primitive_type)
+                isinstance(keyword.value, ast.Constant)
                 and keyword.value.value == inner_primitive
             )
-    except AttributeError:
-        # Python 2, AttributeError on ast.NameConstant
-        primitive_type = ast.Name
-
+    else:
+        # Python 2 represents these values with ast.Name nodes
         def comparator(keyword, inner_primitive):
             return (
-                isinstance(keyword.value, primitive_type)
+                isinstance(keyword.value, ast.Name)
                 and keyword.value.id == str(inner_primitive)
             )
 
@@ -147,8 +162,8 @@ def kwarg_none(call, kwarg_name):
 def kwarg_str(call, kwarg_name, s):
     return any(
         keyword.arg == kwarg_name
-        and isinstance(keyword.value, ast.Str)
-        and keyword.value.s == s
+        and is_string_constant(keyword.value)
+        and string_constant_value(keyword.value) == s
         for keyword in call.keywords
     )
 

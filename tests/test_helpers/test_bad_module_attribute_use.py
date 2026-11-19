@@ -637,6 +637,90 @@ class TestBadModuleAttributeUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_module_attribute_aliased_module(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            alias = foo
+            alias.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+        assert result[0].evidence is not None
+        assert result[0].evidence[-1].description == 'foo.bar'
+
+    def test_module_attribute_nested_on_alias(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            holder = foo
+            holder.bar.baz()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=5,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_module_attribute_dynamic_alias_does_not_fire(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            holder = getattr(foo, 'bar')
+            holder()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        assert result == []
+
+    def test_module_attribute_aliased_safe_module_does_not_fire(self):
+        python_node = self.get_ast_node(
+            """
+            import other
+
+            holder = other
+            holder.bar()
+            """
+        )
+
+        linter = get_bad_module_attribute_use_implementation({'foo': ['bar']})
+        linter.visit(python_node)
+
+        result = linter.get_results()
+
+        assert result == []
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,7 +10,6 @@ from __future__ import (
 import abc
 
 from .. import base
-from ... import tree
 from ... import util
 
 
@@ -35,16 +34,17 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
 
     def __init__(self, *args, **kwargs):
         self.bad_nodes = []
+        self._evidence = {}
 
         super(BadModuleAttributeUseLinter, self).__init__(*args, **kwargs)
 
     def get_results(self):
-
         return [
             base.Flake8Result(
                 lineno=node.lineno,
                 col_offset=node.col_offset,
-                message=self._error_tmpl
+                message=self._error_tmpl,
+                evidence=self._evidence.get(id(node))
             )
             for node in self.bad_nodes
         ]
@@ -78,13 +78,25 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
     def visit_Attribute(self, node):
         self.generic_visit(node)
 
-        module_path = tree.module_path_str(node.value)
+        # Resolve the full attribute expression so aliases and nested
+        # attribute access on an aliased value are traced back to the
+        # importable path they originate from.
+        origin = self.resolver.resolve(node)
+
+        if origin.state != 'known':
+            # Dynamic or otherwise unresolvable values keep an explicit
+            # unknown state instead of being optimistically matched.
+            return
 
         illegal_attribute_use = any(
             node.attr in attributes
-            and self.namespace.illegal_module_imported(module_path, illegal_module_path)
+            and self.namespace.illegal_module_imported(
+                origin.module_path,
+                illegal_module_path
+            )
             for illegal_module_path, attributes in self.illegal_module_attributes.items()
         )
 
         if illegal_attribute_use:
             self.bad_nodes.append(node)
+            self._evidence[id(node)] = origin.steps

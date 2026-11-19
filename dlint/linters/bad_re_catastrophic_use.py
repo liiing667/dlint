@@ -7,11 +7,10 @@ from __future__ import (
     unicode_literals,
 )
 
-import ast
-
 from .helpers import bad_module_attribute_use
 from . import base
 from .. import redos
+from .. import tree
 
 
 class BadReCatastrophicUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter):
@@ -70,10 +69,10 @@ class BadReCatastrophicUseLinter(bad_module_attribute_use.BadModuleAttributeUseL
             pattern = call.args[pattern_argument_number]
 
             # Only handle string literals for now
-            if not isinstance(pattern, ast.Str):
+            if not tree.is_string_constant(pattern):
                 return False
 
-            return redos.detect.catastrophic(pattern.s)
+            return redos.detect.catastrophic(tree.string_constant_value(pattern))
 
         return [
             base.Flake8Result(

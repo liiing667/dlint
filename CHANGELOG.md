@@ -5,6 +5,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Data-flow resolver (`dlint.dataflow`) and AST parent-chain helpers
+  (`dlint.parents`) that trace value origins through aliases, keyword
+  arguments, and nested attribute access, attaching an evidence chain to
+  each finding
+- Module- and class-scope coverage for `BadNameAttributeUseLinter`
+
+### Changed
+- `BadKwargUseLinter` and `BadNameAttributeUseLinter` now resolve the called
+  value back to its originating import before matching a sink, so aliased and
+  nested-attribute calls are no longer false negatives
+- Unresolvable dynamic calls (`getattr`, subscript dispatch, function
+  arguments, unpacking) retain an explicit unknown state instead of being
+  treated as safe, and confirmed-clean code never produces findings
+
+### Fixed
+- False negative when a blacklisted callable was reached through a variable
+  alias or nested attribute on an aliased value
+- Compatibility with Python 3.12+ where `ast.Str` and `ast.NameConstant`
+  were removed
+- `import foo.bar` now registers the bound top-level name `foo`
 
 ## [0.10.2] - 2020-02-19
 ### Changed
