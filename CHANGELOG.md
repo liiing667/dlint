@@ -5,6 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- A linter registry (`dlint.registry.LinterRegistry`) that keys rules by
+  their `_code` identity and validates the code prefix, class name, and
+  `_error_tmpl` reporting prefix on registration
+
+### Changed
+- `Flake8Extension.get_linter_classes` now merges built-in and plugin linters
+  through the registry instead of concatenating tuples
+
+### Fixed
+- Duplicate linter codes, duplicate class names, abstract linters, and
+  mismatched code/message prefixes now fail closed with `RegistryError`
+  instead of silently masking one rule with another
 
 ## [0.10.2] - 2020-02-19
 ### Changed

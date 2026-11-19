@@ -59,6 +59,55 @@ def extension_with_options(options):
 
 class TestFlake8Extension(base.BaseTest):
 
+    def test_flake8_extension_plugin_duplicate_code_fails_closed(self):
+        class DlintDuplicateLinter(extension.dlint.linters.base.BaseLinter):
+            _code = extension.dlint.linters.BadEvalUseLinter._code
+            _error_tmpl = (
+                extension.dlint.linters.BadEvalUseLinter._code
+                + " duplicate plugin rule"
+            )
+        original_plugin_classes = (
+            extension.Flake8Extension.get_plugin_linter_classes
+        )
+
+        extension.Flake8Extension.get_plugin_linter_classes = classmethod(
+            lambda cls: [DlintDuplicateLinter]
+        )
+        try:
+            with self.assertRaises(extension.dlint.registry.RegistryError):
+                extension.Flake8Extension.get_linter_classes()
+        finally:
+            extension.Flake8Extension.get_plugin_linter_classes = (
+                original_plugin_classes
+            )
+
+        # The built-in registry itself is left untouched by the failed merge.
+        builtin_registry = extension.dlint.linters.REGISTRY
+        assert (
+            builtin_registry.get_by_code(
+                extension.dlint.linters.BadEvalUseLinter._code
+            )
+            is extension.dlint.linters.BadEvalUseLinter
+        )
+
+    def test_flake8_extension_plugin_same_class_is_deduplicated(self):
+        linter_class = extension.dlint.linters.BadEvalUseLinter
+        original_plugin_classes = (
+            extension.Flake8Extension.get_plugin_linter_classes
+        )
+
+        extension.Flake8Extension.get_plugin_linter_classes = classmethod(
+            lambda cls: [linter_class, linter_class]
+        )
+        try:
+            result = extension.Flake8Extension.get_linter_classes()
+        finally:
+            extension.Flake8Extension.get_plugin_linter_classes = (
+                original_plugin_classes
+            )
+
+        assert result == extension.dlint.linters.ALL
+
     def test_flake8_extension_empty(self):
         python_node = self.get_ast_node(
             """

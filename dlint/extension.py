@@ -72,14 +72,23 @@ class Flake8Extension(object):
             inner_cls
             for module in plugin_modules
             for name, inner_cls in inspect.getmembers(module, predicate=inspect.isclass)
-            if name.startswith(class_prefix)
+            if (name.startswith(class_prefix)
+                and not inspect.isabstract(inner_cls))
         ]
 
         return plugin_classes
 
     @classmethod
     def get_linter_classes(cls):
-        linter_classes = dlint.linters.ALL + tuple(cls.get_plugin_linter_classes())
+        # Build the registry from the built-in rules and any installed
+        # plugins. Identity is the linter code, so registering the same class
+        # more than once is a no-op, while two different classes claiming the
+        # same code or class name raises instead of one rule masking another.
+        registry = dlint.registry.LinterRegistry()
+        registry.register_all(dlint.linters.ALL)
+        registry.register_all(cls.get_plugin_linter_classes())
+
+        linter_classes = registry.all()
 
         if cls.options:
             engine = style_guide.DecisionEngine(cls.options)

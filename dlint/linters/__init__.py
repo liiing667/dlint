@@ -8,6 +8,8 @@ from __future__ import (
 from . import base  # noqa F401
 from . import helpers  # noqa F401
 
+from ..registry import LinterRegistry
+
 from .bad_commands_use import BadCommandsUseLinter
 from .bad_compile_use import BadCompileUseLinter
 from .bad_cryptography_module_attribute_use import BadCryptographyModuleAttributeUseLinter
@@ -88,3 +90,9 @@ ALL = (
     ReturnValueInInlineCallbacksLinter,
     YieldReturnStatementLinter,
 )
+
+# Registering at import time means any duplicate code, duplicate class name,
+# or mismatched code/message prefix in the built-in rules fails fast instead
+# of silently masking another rule.
+REGISTRY = LinterRegistry()
+REGISTRY.register_all(ALL)
