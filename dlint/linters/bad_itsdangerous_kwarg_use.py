@@ -22,6 +22,7 @@ class BadItsDangerousKwargUseLinter(bad_kwarg_use.BadKwargUseLinter):
 
     _code = 'DUO137'
     _error_tmpl = 'DUO137 insecure "itsdangerous" use allowing empty signing'
+    _severity = 'MEDIUM'
 
     @property
     def kwargs(self):

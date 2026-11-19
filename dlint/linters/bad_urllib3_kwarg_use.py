@@ -22,6 +22,7 @@ class BadUrllib3KwargUseLinter(bad_kwarg_use.BadKwargUseLinter):
 
     _code = 'DUO132'
     _error_tmpl = 'DUO132 "urllib3" certificate verification disabled, insecure connections possible'
+    _severity = 'MEDIUM'
 
     @property
     def kwargs(self):

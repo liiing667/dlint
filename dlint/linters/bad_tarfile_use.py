@@ -19,6 +19,7 @@ class BadTarfileUseLinter(bad_name_attribute_use.BadNameAttributeUseLinter):
 
     _code = 'DUO115'
     _error_tmpl = 'DUO115 use of "extract|extractall" is insecure'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_name_attributes(self):

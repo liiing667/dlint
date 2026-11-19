@@ -24,6 +24,7 @@ class BadDefusedxmlUseLinter(bad_kwarg_use.BadKwargUseLinter):
 
     _code = 'DUO135'
     _error_tmpl = 'DUO135 enable all "forbid_*" defenses when using "defusedxml" parsing'
+    _severity = 'MEDIUM'
 
     @property
     def kwargs(self):

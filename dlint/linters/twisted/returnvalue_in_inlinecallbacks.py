@@ -21,6 +21,7 @@ class ReturnValueInInlineCallbacksLinter(base.BaseLinter):
 
     _code = 'DUO114'
     _error_tmpl = 'DUO114 "returnValue" in function missing "inlineCallbacks" decorator'
+    _severity = 'LOW'
 
     def visit_FunctionDef(self, node):
         self.generic_visit(node)

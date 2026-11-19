@@ -18,6 +18,7 @@ class BadHashlibUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter):
 
     _code = 'DUO130'
     _error_tmpl = 'DUO130 insecure use of "hashlib" module'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

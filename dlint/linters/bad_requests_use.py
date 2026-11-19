@@ -22,6 +22,7 @@ class BadRequestsUseLinter(bad_kwarg_use.BadKwargUseLinter):
 
     _code = 'DUO123'
     _error_tmpl = 'DUO123 use of "verify=False" is insecure in "requests" module'
+    _severity = 'MEDIUM'
 
     @property
     def kwargs(self):

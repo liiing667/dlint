@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Rule severity levels (`INFO`, `LOW`, `MEDIUM`, `HIGH`) with a single
+  semantic shared by rule configuration, finding identity and report ordering
+- `--dlint-min-severity` option to only report findings at or above a given
+  severity level
+- Severity column in `--print-dlint-linters` output, ordered by severity
+
+### Changed
+- Findings are now ordered highest severity first, then by source location
+  and rule code, instead of linter registration order
+
+### Fixed
+- Unknown severity levels fail closed with an error instead of being silently
+  accepted, preventing severity filters from hiding real high-risk findings
 
 ## [0.10.2] - 2020-02-19
 ### Changed

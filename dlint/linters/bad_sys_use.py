@@ -20,6 +20,7 @@ class BadSysUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter):
 
     _code = 'DUO111'
     _error_tmpl = 'DUO111 insecure use of "sys" module'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

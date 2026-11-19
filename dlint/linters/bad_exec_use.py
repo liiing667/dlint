@@ -20,6 +20,7 @@ class BadExecUseLinter(bad_builtin_use.BadBuiltinUseLinter):
 
     _code = 'DUO105'
     _error_tmpl = 'DUO105 use of "exec" is insecure'
+    _severity = 'HIGH'
 
     # Python 2
     def visit_Exec(self, node):

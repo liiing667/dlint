@@ -27,6 +27,7 @@ class BadSubprocessUseLinter(bad_kwarg_use.BadKwargUseLinter):
 
     _code = 'DUO116'
     _error_tmpl = 'DUO116 use of "shell=True" is insecure in "subprocess" module'
+    _severity = 'HIGH'
 
     @property
     def kwargs(self):

@@ -19,6 +19,7 @@ class BadZipfileUseLinter(bad_name_attribute_use.BadNameAttributeUseLinter):
 
     _code = 'DUO112'
     _error_tmpl = 'DUO112 use of "extract|extractall" is insecure'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_name_attributes(self):

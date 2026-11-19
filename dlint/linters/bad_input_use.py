@@ -22,6 +22,7 @@ class BadInputUseLinter(base.BaseLinter):
 
     _code = 'DUO108'
     _error_tmpl = 'DUO108 use of "input" is insecure'
+    _severity = 'MEDIUM'
 
     def __init__(self, *args, **kwargs):
         self.unsafe_input_import = True

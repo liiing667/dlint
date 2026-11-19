@@ -26,6 +26,7 @@ class BadCompileUseLinter(bad_builtin_use.BadBuiltinUseLinter):
 
     _code = 'DUO110'
     _error_tmpl = 'DUO110 use of "compile" is insecure'
+    _severity = 'HIGH'
 
     @property
     def illegal_builtin(self):

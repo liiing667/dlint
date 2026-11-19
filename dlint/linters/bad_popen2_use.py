@@ -18,6 +18,7 @@ class BadPopen2UseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO126'
     _error_tmpl = 'DUO126 avoid "popen2" module use'
+    _severity = 'HIGH'
 
     @property
     def illegal_modules(self):

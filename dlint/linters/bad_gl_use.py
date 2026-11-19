@@ -23,6 +23,7 @@ class BadGlUseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO118'
     _error_tmpl = 'DUO118 avoid "gl" module use'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_modules(self):

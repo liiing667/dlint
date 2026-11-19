@@ -23,6 +23,7 @@ class InlineCallbacksYieldStatementLinter(base.BaseLinter):
 
     _code = 'DUO113'
     _error_tmpl = 'DUO113 "inlineCallbacks" function missing "yield" statement'
+    _severity = 'LOW'
 
     def visit_FunctionDef(self, node):
         self.generic_visit(node)

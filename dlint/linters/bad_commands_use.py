@@ -18,6 +18,7 @@ class BadCommandsUseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO125'
     _error_tmpl = 'DUO125 avoid "commands" module use'
+    _severity = 'HIGH'
 
     @property
     def illegal_modules(self):

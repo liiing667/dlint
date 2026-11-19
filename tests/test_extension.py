@@ -36,10 +36,12 @@ import extension  # noqa: E402
 def create_options(**kwargs):
     kwargs.setdefault("select", [])
     kwargs.setdefault("extended_default_select", ["DUO"])
+    kwargs.setdefault("extended_default_ignore", [])
     kwargs.setdefault("ignore", [])
     kwargs.setdefault("extend_ignore", [])
     kwargs.setdefault("disable_noqa", False)
     kwargs.setdefault("enable_extensions", [])
+    kwargs.setdefault("dlint_min_severity", None)
 
     return argparse.Namespace(**kwargs)
 
@@ -55,9 +57,33 @@ def extension_with_options(options):
         yield ext
     finally:
         ext.options = None
+        ext.min_severity = None
 
 
 class TestFlake8Extension(base.BaseTest):
+
+    FIXED_FINDING_SOURCE = """
+        import random
+        import pickle
+        random.random()
+        pickle.loads(x)
+    """
+
+    def _run_extension(self, source, **option_kwargs):
+        python_node = self.get_ast_node(source)
+        options = create_options(**option_kwargs)
+
+        ext = extension.Flake8Extension
+        ext.options = options
+        ext.min_severity = ext._parse_min_severity(
+            options.dlint_min_severity
+        )
+        try:
+            linter = extension.Flake8Extension(python_node, "unused")
+            return list(linter.run())
+        finally:
+            ext.options = None
+            ext.min_severity = None
 
     def test_flake8_extension_empty(self):
         python_node = self.get_ast_node(
@@ -144,6 +170,109 @@ class TestFlake8Extension(base.BaseTest):
         expected = extension.dlint.linters.ALL
 
         assert result == expected
+
+    def test_flake8_extension_fixed_findings_are_complete(self):
+        result = self._run_extension(self.FIXED_FINDING_SOURCE)
+
+        codes = [item[3]._code for item in result]
+
+        assert codes == ["DUO103", "DUO102"]
+
+    def test_flake8_extension_fixed_findings_sorted_by_severity(self):
+        result = self._run_extension(self.FIXED_FINDING_SOURCE)
+
+        severities = [
+            item[3]._get_severity()
+            for item in result
+        ]
+
+        # HIGH (pickle) must be reported before MEDIUM (random) even though
+        # the medium finding appears earlier in the source.
+        assert severities == [
+            extension.dlint.severity.Severity("HIGH"),
+            extension.dlint.severity.Severity("MEDIUM"),
+        ]
+
+    def test_flake8_extension_min_severity_filters_findings(self):
+        result = self._run_extension(
+            self.FIXED_FINDING_SOURCE,
+            dlint_min_severity="HIGH"
+        )
+
+        codes = [item[3]._code for item in result]
+
+        assert codes == ["DUO103"]
+
+    def test_flake8_extension_min_severity_medium_keeps_both(self):
+        result = self._run_extension(
+            self.FIXED_FINDING_SOURCE,
+            dlint_min_severity="MEDIUM"
+        )
+
+        codes = sorted(item[3]._code for item in result)
+
+        assert codes == ["DUO102", "DUO103"]
+
+    def test_flake8_extension_min_severity_low_keeps_both(self):
+        result = self._run_extension(
+            self.FIXED_FINDING_SOURCE,
+            dlint_min_severity="LOW"
+        )
+
+        codes = sorted(item[3]._code for item in result)
+
+        assert codes == ["DUO102", "DUO103"]
+
+    def test_flake8_extension_min_severity_filters_linter_classes(self):
+        options = create_options(dlint_min_severity="HIGH")
+
+        ext = extension.Flake8Extension
+        ext.options = options
+        ext.min_severity = ext._parse_min_severity("HIGH")
+        try:
+            result = ext.get_linter_classes()
+        finally:
+            ext.options = None
+            ext.min_severity = None
+
+        assert all(
+            linter_class._get_severity()
+            >= extension.dlint.severity.Severity("HIGH")
+            for linter_class in result
+        )
+        assert extension.dlint.linters.BadExecUseLinter in result
+        assert extension.dlint.linters.BadRandomGeneratorUseLinter not in result
+
+    def test_flake8_extension_unknown_min_severity_rejected(self):
+        with self.assertRaises(
+            extension.dlint.severity.InvalidSeverity
+        ):
+            extension.Flake8Extension._parse_min_severity("CRITICAL")
+
+    def test_flake8_extension_unknown_rule_severity_rejected(self):
+        class BrokenLinter(extension.dlint.linters.base.BaseLinter):
+            _code = "DUOBROKEN"
+            _error_tmpl = "DUOBROKEN error message"
+            _severity = "unknown"
+
+        with self.assertRaises(
+            extension.dlint.severity.InvalidSeverity
+        ):
+            BrokenLinter()
+
+    def test_flake8_extension_findings_have_identity(self):
+        result = self._run_extension(self.FIXED_FINDING_SOURCE)
+
+        # Every tuple position is populated so a finding has an
+        # unambiguous identity and shares the rule's severity semantics.
+        assert all(
+            lineno >= 1
+            and col_offset >= 0
+            and message.startswith(linter_class._code)
+            and linter_class._get_severity()
+            in extension.dlint.severity.Severity.members()
+            for lineno, col_offset, message, linter_class in result
+        )
 
 
 if __name__ == "__main__":

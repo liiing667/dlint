@@ -26,6 +26,7 @@ class BadReCatastrophicUseLinter(bad_module_attribute_use.BadModuleAttributeUseL
 
     _code = 'DUO138'
     _error_tmpl = 'DUO138 catastrophic "re" usage - denial-of-service possible'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

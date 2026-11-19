@@ -19,6 +19,7 @@ class BadYAMLUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter):
 
     _code = 'DUO109'
     _error_tmpl = 'DUO109 insecure use of "yaml" parsing function, prefer "safe_*" equivalent'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

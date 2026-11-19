@@ -18,6 +18,7 @@ class BadXmlsecModuleAttributeUseLinter(bad_module_attribute_use.BadModuleAttrib
 
     _code = 'DUO136'
     _error_tmpl = 'DUO136 insecure "xmlsec" attribute use'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

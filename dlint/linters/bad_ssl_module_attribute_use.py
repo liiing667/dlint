@@ -26,6 +26,7 @@ class BadSSLModuleAttributeUseLinter(bad_module_attribute_use.BadModuleAttribute
 
     _code = 'DUO122'
     _error_tmpl = 'DUO122 insecure "ssl" module attribute use'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

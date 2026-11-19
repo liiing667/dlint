@@ -18,6 +18,7 @@ class BadOneLoginModuleAttributeUseLinter(bad_module_attribute_use.BadModuleAttr
 
     _code = 'DUO129'
     _error_tmpl = 'DUO129 insecure "OneLogin" SAML attribute use'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

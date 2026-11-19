@@ -23,6 +23,7 @@ class BadMarshalUseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO120'
     _error_tmpl = 'DUO120 avoid "marshal" module use'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_modules(self):

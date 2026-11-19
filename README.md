@@ -85,6 +85,28 @@ To fine-tune your linting, check out the `flake8` help:
 $ python -m flake8 --help
 ```
 
+## Severity Levels
+
+Every Dlint rule has one of four severity levels, ordered from lowest to
+highest risk: `INFO`, `LOW`, `MEDIUM`, and `HIGH`. The rule level, each
+finding's identity, and report ordering all use the same severity semantics.
+
+Findings are reported with the highest severity first, then by source
+location and rule code. An unknown severity is never accepted: Dlint fails
+closed and raises an error rather than silently treating an unrecognized
+level as harmless, so a misconfigured filter cannot hide a real high-risk
+finding.
+
+To limit a run to findings at or above a given level, use
+`--dlint-min-severity`:
+
+```
+$ python -m flake8 --select=DUO --dlint-min-severity=HIGH /path/to/code
+```
+
+The severity of every rule is shown by `--print-dlint-linters`, which lists
+rules ordered from lowest to highest severity.
+
 ## Inline Editor
 
 Dlint results can also be included inline in your editor for fast feedback.

@@ -23,6 +23,7 @@ class BadDlUseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO117'
     _error_tmpl = 'DUO117 avoid "dl" module use'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_modules(self):

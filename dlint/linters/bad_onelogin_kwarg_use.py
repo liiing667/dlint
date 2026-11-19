@@ -22,6 +22,7 @@ class BadOneLoginKwargUseLinter(bad_kwarg_use.BadKwargUseLinter):
 
     _code = 'DUO128'
     _error_tmpl = 'DUO128 insecure "OneLogin" SAML function call'
+    _severity = 'MEDIUM'
 
     @property
     def kwargs(self):

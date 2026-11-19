@@ -28,6 +28,7 @@ class BadXmlrpcUseLinter(bad_kwarg_use.BadKwargUseLinter):
 
     _code = 'DUO124'
     _error_tmpl = 'DUO124 instance with "allow_dotted_names" enabled is insecure'
+    _severity = 'MEDIUM'
 
     @property
     def kwargs(self):

@@ -25,6 +25,7 @@ class BadTempfileUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter)
 
     _code = 'DUO121'
     _error_tmpl = 'DUO121 use of "tempfile.mktemp" allows for race conditions'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_module_attributes(self):

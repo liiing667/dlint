@@ -18,6 +18,7 @@ class BadPickleUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter):
 
     _code = 'DUO103'
     _error_tmpl = 'DUO103 insecure use of "pickle" or "cPickle"'
+    _severity = 'HIGH'
 
     @property
     def illegal_module_attributes(self):

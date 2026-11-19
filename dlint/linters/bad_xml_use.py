@@ -19,6 +19,7 @@ class BadXMLUseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO107'
     _error_tmpl = 'DUO107 insecure use of XML modules, prefer "defusedxml"'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_modules(self):

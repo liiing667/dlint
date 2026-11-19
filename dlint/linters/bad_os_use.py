@@ -24,6 +24,7 @@ class BadOSUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter):
 
     _code = 'DUO106'
     _error_tmpl = 'DUO106 insecure use of "os" module'
+    _severity = 'HIGH'
 
     @property
     def illegal_module_attributes(self):

@@ -23,6 +23,7 @@ class BadShelveUseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO119'
     _error_tmpl = 'DUO119 avoid "shelve" module use'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_modules(self):

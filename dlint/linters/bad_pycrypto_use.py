@@ -19,6 +19,7 @@ class BadPycryptoUseLinter(bad_module_use.BadModuleUseLinter):
 
     _code = 'DUO133'
     _error_tmpl = 'DUO133 use of "Crypto" module is insecure'
+    _severity = 'MEDIUM'
 
     @property
     def illegal_modules(self):
