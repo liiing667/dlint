@@ -12,6 +12,7 @@ import ast
 from .helpers import bad_module_attribute_use
 from . import base
 from .. import redos
+from .. import tree
 
 
 class BadReCatastrophicUseLinter(bad_module_attribute_use.BadModuleAttributeUseLinter):
@@ -70,17 +71,19 @@ class BadReCatastrophicUseLinter(bad_module_attribute_use.BadModuleAttributeUseL
             pattern = call.args[pattern_argument_number]
 
             # Only handle string literals for now
-            if not isinstance(pattern, ast.Str):
+            if not tree.is_string_node(pattern):
                 return False
 
-            return redos.detect.catastrophic(pattern.s)
+            return redos.detect.catastrophic(tree.string_node_value(pattern))
 
-        return [
-            base.Flake8Result(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                message=self._error_tmpl
-            )
-            for node in self.bad_nodes
+        catastrophic_nodes = [
+            node for node in self.bad_nodes
             if pattern_is_catastrophic(node)
         ]
+
+        self.extend_node_results(
+            catastrophic_nodes,
+            self._error_tmpl
+        )
+
+        return base.BaseLinter.get_results(self)

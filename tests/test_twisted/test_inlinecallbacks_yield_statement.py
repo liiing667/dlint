@@ -411,6 +411,59 @@ class TestInlineCallbacksYieldStatement(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_multiline_missing_yield_statement_position(self):
+        python_node = self.get_ast_node(
+            """
+            from twisted.internet import defer
+
+            @defer.inlineCallbacks(
+                some_arg,
+            )
+            def func(
+                arg,
+            ):
+                return arg
+            """
+        )
+
+        linter = dlint.linters.InlineCallbacksYieldStatementLinter()
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=0,
+                message=dlint.linters.InlineCallbacksYieldStatementLinter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_multiline_with_yield_statement_no_finding(self):
+        python_node = self.get_ast_node(
+            """
+            from twisted.internet import defer
+
+            @defer.inlineCallbacks(
+                some_arg,
+            )
+            def func(
+                arg,
+            ):
+                yield arg
+                return
+            """
+        )
+
+        linter = dlint.linters.InlineCallbacksYieldStatementLinter()
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = []
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

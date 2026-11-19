@@ -535,6 +535,153 @@ class TestBadKwargUse(dlint.test.base.BaseTest):
 
         assert result == expected
 
+    def test_kwargs_multiline_call_position(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            foo.bar(
+                arg,
+                kwarg="test",
+            )
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=4,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_kwargs_multiline_calls_keep_source_order(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            foo.bar(
+                kwarg="test",
+            )
+            foo.bar(
+                other,
+                kwarg="test",
+            )
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=4,
+                col_offset=0,
+                message=linter._error_tmpl
+            ),
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_kwargs_multiline_call_normal_rule_still_fires(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            foo.bar(
+                arg,
+            )
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_not_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=4,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_kwargs_duplicate_rule_merges_findings(self):
+        python_node = self.get_ast_node(
+            """
+            import foo
+
+            foo.bar(
+                kwarg="test",
+            )
+            """
+        )
+
+        linter = get_bad_kwarg_use_implementation(
+            [
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+                {
+                    "module_path": "foo.bar",
+                    "kwarg_name": "kwarg",
+                    "predicate": dlint.tree.kwarg_present,
+                },
+            ]
+        )
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=4,
+                col_offset=0,
+                message=linter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -102,10 +102,7 @@ class BadKwargUseLinter(base.BaseLinter, util.ABC):
         )
 
         if bad_kwarg:
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
+            self.append_node_result(
+                node,
+                self._error_tmpl
             )

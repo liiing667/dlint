@@ -5,6 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- Findings now derive their AST node, source line/column, and report
+  fingerprint from the same node so positions always point at the actual sink
+  instead of an enclosing decorator or parent node
+- Repeated findings for the same node and message are merged deterministically
+  while preserving first-seen source ordering
+- `DUO114` now reports one finding per `returnValue` call location instead of a
+  single finding anchored to the parent function
+
+### Fixed
+- AST nodes without a source location are reported with explicit unknown
+  line/column markers instead of a misleading position
+- `ast.Str` and `ast.NameConstant` usage for Python 3.12+ compatibility
 
 ## [0.10.2] - 2020-02-19
 ### Changed

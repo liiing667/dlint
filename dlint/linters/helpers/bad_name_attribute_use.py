@@ -105,13 +105,9 @@ class BadNameAttributeUseLinter(base.BaseLinter, util.ABC):
 
         tree.walk_callback_same_scope(node, attribute_use_callback)
 
-        self.results.extend(
-            base.Flake8Result(
-                lineno=result.lineno,
-                col_offset=result.col_offset,
-                message=self._error_tmpl
-            )
-            for result in results
+        self.extend_node_results(
+            results,
+            self._error_tmpl
         )
 
     def visit_AsyncFunctionDef(self, node):

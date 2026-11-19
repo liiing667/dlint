@@ -8,7 +8,35 @@ from __future__ import (
 )
 
 import ast
+import copy
 import sys
+
+# ast.Str and ast.NameConstant were deprecated in Python 3.8 in favor of
+# ast.Constant and removed in Python 3.12. Guard the legacy types so
+# attribute lookups keep working on modern interpreters instead of raising
+# AttributeError.
+_LEGACY_STR_TYPES = tuple(
+    node_type for node_type in (getattr(ast, 'Str', None),)
+    if node_type is not None
+)
+_LEGACY_NAMECONSTANT_TYPES = tuple(
+    node_type for node_type in (getattr(ast, 'NameConstant', None),)
+    if node_type is not None
+)
+
+
+def is_string_node(node):
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return True
+
+    return bool(_LEGACY_STR_TYPES) and isinstance(node, _LEGACY_STR_TYPES)
+
+
+def string_node_value(node):
+    if isinstance(node, ast.Constant):
+        return node.value
+
+    return node.s
 
 
 def decorator_name(decorator):
@@ -41,13 +69,32 @@ def function_is_empty(function):
         return (
             isinstance(node, ast.Raise)
             or isinstance(node, ast.Pass)
-            or (isinstance(node, ast.Expr) and isinstance(node.value, ast.Str))
+            or (isinstance(node, ast.Expr) and is_string_node(node.value))
         )
 
     return all(
         raise_or_pass_or_docstring(child)
         for child in function.body
     )
+
+
+def function_definition_node(function):
+    """Return a node whose location identifies the function definition rather
+    than an enclosing decorator.
+
+    Starting in Python 3.8 ast.FunctionDef.lineno points at the 'def' line.
+    On older interpreters it points at the first decorator, so a copied node
+    carrying an explicit unknown location is returned instead of letting a
+    finding highlight the decorator.
+    """
+    if sys.version_info >= (3, 8) or not function.decorator_list:
+        return function
+
+    definition_node = copy.copy(function)
+    definition_node.lineno = None
+    definition_node.col_offset = None
+
+    return definition_node
 
 
 def call_is_returnvalue(call):
@@ -106,24 +153,29 @@ def kwarg_not_present(call, kwarg_name):
 
 
 def kwarg_primitive(call, kwarg_name, primitive):
-    try:
-        # Python 3
-        primitive_type = ast.NameConstant
+    def comparator(keyword, inner_primitive):
+        value = keyword.value
 
-        def comparator(keyword, inner_primitive):
-            return (
-                isinstance(keyword.value, primitive_type)
-                and keyword.value.value == inner_primitive
+        if isinstance(value, ast.Constant):
+            # Preserve the ast.NameConstant distinction: booleans and None
+            # are primitive constants, but numeric literals such as 1 are not
+            # even though 1 == True in Python.
+            is_primitive_constant = (
+                isinstance(value.value, bool)
+                or value.value is None
             )
-    except AttributeError:
-        # Python 2, AttributeError on ast.NameConstant
-        primitive_type = ast.Name
 
-        def comparator(keyword, inner_primitive):
-            return (
-                isinstance(keyword.value, primitive_type)
-                and keyword.value.id == str(inner_primitive)
-            )
+            return is_primitive_constant and value.value == inner_primitive
+
+        # Python 2, ast.NameConstant does not exist and primitives are names
+        if not _LEGACY_NAMECONSTANT_TYPES and isinstance(value, ast.Name):
+            return value.id == str(inner_primitive)
+
+        return (
+            bool(_LEGACY_NAMECONSTANT_TYPES)
+            and isinstance(value, _LEGACY_NAMECONSTANT_TYPES)
+            and value.value == inner_primitive
+        )
 
     return any(
         keyword.arg == kwarg_name
@@ -147,8 +199,8 @@ def kwarg_none(call, kwarg_name):
 def kwarg_str(call, kwarg_name, s):
     return any(
         keyword.arg == kwarg_name
-        and isinstance(keyword.value, ast.Str)
-        and keyword.value.s == s
+        and is_string_node(keyword.value)
+        and string_node_value(keyword.value) == s
         for keyword in call.keywords
     )
 

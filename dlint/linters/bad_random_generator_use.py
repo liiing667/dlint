@@ -40,12 +40,9 @@ class BadRandomGeneratorUseLinter(base.BaseLinter):
             )
 
             if illegal_function_use:
-                self.results.append(
-                    base.Flake8Result(
-                        lineno=node.lineno,
-                        col_offset=node.col_offset,
-                        message=self._error_tmpl
-                    )
+                self.append_node_result(
+                    node,
+                    self._error_tmpl
                 )
 
     def visit_ImportFrom(self, node):
@@ -58,10 +55,7 @@ class BadRandomGeneratorUseLinter(base.BaseLinter):
         )
 
         if illegal_import_from_use:
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
+            self.append_node_result(
+                node,
+                self._error_tmpl
             )

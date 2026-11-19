@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
-import sys
 import unittest
 
 import dlint
-
-IS_PYTHON_3_8 = sys.version_info >= (3, 8)
 
 
 class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
@@ -41,8 +38,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=5 if IS_PYTHON_3_8 else 4,
-                col_offset=0,
+                lineno=6,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -68,8 +65,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=7 if IS_PYTHON_3_8 else 6,
-                col_offset=0,
+                lineno=8,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -95,8 +92,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=7 if IS_PYTHON_3_8 else 6,
-                col_offset=0,
+                lineno=8,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -141,8 +138,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=4,
-                col_offset=0,
+                lineno=7,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -207,8 +204,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=4,
-                col_offset=0,
+                lineno=6,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -238,8 +235,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=4,
-                col_offset=0,
+                lineno=12,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -268,8 +265,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=4,
-                col_offset=0,
+                lineno=11,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -298,8 +295,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=8,
-                col_offset=4,
+                lineno=9,
+                col_offset=8,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -330,8 +327,8 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=4,
-                col_offset=0,
+                lineno=13,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
@@ -361,11 +358,71 @@ class TestReturnValueInlineCallbacks(dlint.test.base.BaseTest):
         result = linter.get_results()
         expected = [
             dlint.linters.base.Flake8Result(
-                lineno=4,
-                col_offset=0,
+                lineno=12,
+                col_offset=4,
                 message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
             )
         ]
+
+        assert result == expected
+
+    def test_multiline_returnvalue_points_at_call_sinks(self):
+        python_node = self.get_ast_node(
+            """
+            from twisted.internet import defer
+
+            def func(
+                arg,
+            ):
+                defer.returnValue(
+                    'first',
+                )
+                if arg:
+                    defer.returnValue(
+                        'second',
+                    )
+            """
+        )
+
+        linter = dlint.linters.ReturnValueInInlineCallbacksLinter()
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = [
+            dlint.linters.base.Flake8Result(
+                lineno=7,
+                col_offset=4,
+                message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
+            ),
+            dlint.linters.base.Flake8Result(
+                lineno=11,
+                col_offset=8,
+                message=dlint.linters.ReturnValueInInlineCallbacksLinter._error_tmpl
+            )
+        ]
+
+        assert result == expected
+
+    def test_multiline_decorated_returnvalue_no_finding(self):
+        python_node = self.get_ast_node(
+            """
+            from twisted.internet import defer
+
+            @defer.inlineCallbacks
+            def func(
+                arg,
+            ):
+                defer.returnValue(
+                    'first',
+                )
+            """
+        )
+
+        linter = dlint.linters.ReturnValueInInlineCallbacksLinter()
+        linter.visit(python_node)
+
+        result = linter.get_results()
+        expected = []
 
         assert result == expected
 

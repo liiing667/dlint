@@ -35,12 +35,9 @@ class BadInputUseLinter(base.BaseLinter):
                 and self.unsafe_input_import
                 and isinstance(node.func, ast.Name)
                 and node.func.id == 'input'):
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
+            self.append_node_result(
+                node,
+                self._error_tmpl
             )
 
     def visit_ImportFrom(self, node):

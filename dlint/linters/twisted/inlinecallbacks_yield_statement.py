@@ -42,10 +42,7 @@ class InlineCallbacksYieldStatementLinter(base.BaseLinter):
         tree.walk_callback_same_scope(node, yield_statement_callback)
 
         if not results:
-            self.results.append(
-                base.Flake8Result(
-                    lineno=node.lineno,
-                    col_offset=node.col_offset,
-                    message=self._error_tmpl
-                )
+            self.append_node_result(
+                tree.function_definition_node(node),
+                self._error_tmpl
             )

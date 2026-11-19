@@ -39,15 +39,12 @@ class BadModuleAttributeUseLinter(base.BaseLinter, util.ABC):
         super(BadModuleAttributeUseLinter, self).__init__(*args, **kwargs)
 
     def get_results(self):
+        self.extend_node_results(
+            self.bad_nodes,
+            self._error_tmpl
+        )
 
-        return [
-            base.Flake8Result(
-                lineno=node.lineno,
-                col_offset=node.col_offset,
-                message=self._error_tmpl
-            )
-            for node in self.bad_nodes
-        ]
+        return base.BaseLinter.get_results(self)
 
     def visit_Name(self, node):
         def illegal_import_with_name_resolution(name, attributes, illegal_module_path):
