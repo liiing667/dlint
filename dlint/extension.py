@@ -16,6 +16,7 @@ import sys
 from flake8 import style_guide
 
 import dlint
+from dlint import registry
 
 
 class Flake8Extension(object):
@@ -46,11 +47,15 @@ class Flake8Extension(object):
     @classmethod
     def parse_options(cls, options):
         if options.print_dlint_linters:
-            code_prefix_len = 7
+            code_prefix_len = registry.CODE_PREFIX_LEN + 1
             linters = cls.get_linter_classes()
             output_lines = [
-                "{} {} {}".format(l._code, l.__name__, l._error_tmpl[code_prefix_len:])
-                for l in sorted(linters, key=lambda li: li._code)
+                "{} {} {}".format(
+                    linter._code,
+                    linter.__name__,
+                    linter._error_tmpl[code_prefix_len:]
+                )
+                for linter in sorted(linters, key=lambda li: li._code)
             ]
             print("\n".join(output_lines))
             EX_OK = 0
@@ -72,14 +77,24 @@ class Flake8Extension(object):
             inner_cls
             for module in plugin_modules
             for name, inner_cls in inspect.getmembers(module, predicate=inspect.isclass)
-            if name.startswith(class_prefix)
+            if (
+                name.startswith(class_prefix)
+                and inner_cls.__module__ == module.__name__
+            )
         ]
 
         return plugin_classes
 
     @classmethod
     def get_linter_classes(cls):
-        linter_classes = dlint.linters.ALL + tuple(cls.get_plugin_linter_classes())
+        # The registry is the single source of linter identity: a linter is
+        # keyed by its code. Rebuilding it on every call ensures duplicate
+        # or misclassified linters (including third-party plugins) raise
+        # instead of silently shadowing an existing rule.
+        linter_registry = registry.build_registry(
+            dlint.linters.ALL + tuple(cls.get_plugin_linter_classes())
+        )
+        linter_classes = linter_registry.get_linter_classes()
 
         if cls.options:
             engine = style_guide.DecisionEngine(cls.options)
@@ -92,7 +107,10 @@ class Flake8Extension(object):
         return linter_classes
 
     def run(self):
-        linter_instances = [l() for l in self.get_linter_classes()]
+        linter_instances = [
+            linter_class()
+            for linter_class in self.get_linter_classes()
+        ]
         multi_visitor = dlint.multi.MultiNodeVisitor(linter_instances)
         multi_visitor.visit(self.tree)
 

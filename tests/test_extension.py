@@ -31,6 +31,7 @@ sys.path.append(
 
 import base  # noqa: E402
 import extension  # noqa: E402
+from dlint import registry  # noqa: E402
 
 
 def create_options(**kwargs):
@@ -58,6 +59,60 @@ def extension_with_options(options):
 
 
 class TestFlake8Extension(base.BaseTest):
+
+    def test_flake8_extension_registry_identity(self):
+        linter_classes = extension.Flake8Extension.get_linter_classes()
+
+        codes = [linter_class._code for linter_class in linter_classes]
+        assert len(codes) == len(set(codes))
+
+        class_names = [
+            linter_class.__name__ for linter_class in linter_classes
+        ]
+        assert len(class_names) == len(set(class_names))
+
+        for linter_class in linter_classes:
+            assert linter_class._code.startswith(registry.CODE_PREFIX)
+            assert linter_class._error_tmpl.startswith(
+                linter_class._code + ' '
+            )
+
+    def test_flake8_extension_fails_closed_on_duplicate_code(self):
+        class FirstDuplicate(extension.dlint.linters.base.BaseLinter):
+            _code = 'DUO910'
+            _error_tmpl = 'DUO910 first duplicate'
+
+        class SecondDuplicate(extension.dlint.linters.base.BaseLinter):
+            _code = 'DUO910'
+            _error_tmpl = 'DUO910 second duplicate'
+
+        with self.assertRaises(registry.LinterRegistryError):
+            registry.build_registry([FirstDuplicate, SecondDuplicate])
+
+    def test_flake8_extension_fails_closed_on_misclassified_message(self):
+        class Misclassified(extension.dlint.linters.base.BaseLinter):
+            _code = 'DUO911'
+            _error_tmpl = 'DUO999 message code does not match'
+
+        with self.assertRaises(registry.LinterRegistryError):
+            registry.build_registry([Misclassified])
+
+    def test_flake8_extension_fixture_reports_code_classified_messages(self):
+        python_node = self.get_ast_node(
+            """
+            import pickle
+            pickle.loads('TEST')
+            """
+        )
+
+        linter = extension.Flake8Extension(python_node, "unused")
+
+        result = list(linter.run())
+
+        assert result
+        for lineno, col_offset, message, linter_class in result:
+            assert message.startswith(linter_class._code + ' ')
+            assert linter_class in extension.dlint.linters.REGISTRY
 
     def test_flake8_extension_empty(self):
         python_node = self.get_ast_node(

@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- `dlint.registry.LinterRegistry` gives every linter a single canonical
+  identity: its `DUOxxx` code, with unique class names and messages
+  classified under the same code
+
+### Changed
+- Built-in and plugin linters are validated through the registry on every
+  run; plugin discovery only collects linter classes defined in the plugin
+  module
+
+### Fixed
+- Duplicate codes, duplicate class names, malformed `DUOxxx` codes, and
+  messages whose prefix does not match their code now fail fast
+  (`LinterRegistryError`) instead of silently shadowing another rule
 
 ## [0.10.2] - 2020-02-19
 ### Changed

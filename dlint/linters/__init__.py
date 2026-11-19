@@ -88,3 +88,11 @@ ALL = (
     ReturnValueInInlineCallbacksLinter,
     YieldReturnStatementLinter,
 )
+
+# Validate the built-in linters at import time so that duplicate codes,
+# duplicate class names, or misclassified messages fail fast rather than
+# silently shadowing one another.
+from .. import registry  # noqa: E402
+
+REGISTRY = registry.build_registry(ALL)
+ALL = REGISTRY.get_linter_classes()
